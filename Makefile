@@ -4,7 +4,7 @@ GOFLAGS  := -tags=$(GOTAGS)
 
 XGORELEASER_IMAGE := oryd/xgoreleaser:1.26.0-2.14.1
 
-.PHONY: build build-local build-bench-swe test e2e e2e-lang lint vet tidy clean format plugin-dev
+.PHONY: build build-local build-bench-swe test e2e e2e-lang lint vet tidy clean format plugin-dev plugin-dev-codex
 
 build:
 	docker run --platform linux/amd64 --mount type=bind,source="$$(pwd)",target=/project \
@@ -45,6 +45,9 @@ format:
 
 plugin-dev: build-local
 	@echo "Run: claude --plugin-dir ."
+
+plugin-dev-codex:
+	@echo "Restart Codex in this repository, open /plugins, choose the \"Lumen Local Plugins\" marketplace, and install lumen."
 
 vhs:
 	export CLAUDE_PLUGIN_ROOT=$(pwd) && cd testdata/fixtures/go && vhs ../../../docs/demo/demo.tape

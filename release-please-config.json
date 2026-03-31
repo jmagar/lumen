@@ -11,6 +11,11 @@
           "type": "json",
           "path": ".claude-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/lumen/.codex-plugin/plugin.json",
+          "jsonpath": "$.version"
         }
       ]
     }

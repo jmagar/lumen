@@ -73,16 +73,28 @@ _Claude Code asking about the
    ```bash
    ollama pull ordis/jina-embeddings-v2-base-code
    ```
-2. [Claude Code](https://code.claude.com/docs/en/quickstart) installed
+2. [Claude Code](https://code.claude.com/docs/en/quickstart) or
+   [Codex](https://developers.openai.com/codex/cli) installed
 
 **Install:**
+
+**Claude Code**
 
 ```bash
 /plugin marketplace add ory/claude-plugins
 /plugin install lumen@ory
 ```
 
-That's it. On first session start, Lumen:
+**Codex**
+
+This repository ships a repo-local Codex marketplace for development and local
+testing. Restart Codex in the repo, open `/plugins`, choose **Lumen Local
+Plugins**, and install `lumen`. The Codex package lives under `plugins/lumen/`.
+
+Official public Codex plugin publishing is not self-serve yet, so the
+repo-local marketplace is the supported Codex install path for now.
+
+On first Claude session start, Lumen:
 
 1. Downloads the binary automatically from the
    [latest GitHub release](https://github.com/ory/lumen/releases)
@@ -91,6 +103,11 @@ That's it. On first session start, Lumen:
 
 Two skills are also available: `/lumen:doctor` (health check) and
 `/lumen:reindex` (forced re-indexing).
+
+After the Codex plugin is installed, the same MCP tools are bundled there as
+well. Codex-native `doctor` and `reindex` skills are included in the plugin,
+and the first `semantic_search` call seeds or refreshes the index
+automatically.
 
 ## What you get
 
@@ -280,6 +297,9 @@ ollama pull ordis/jina-embeddings-v2-base-code
 
 Run `/lumen:doctor` inside Claude Code to confirm connectivity.
 
+In Codex, use the bundled `doctor` skill or call `health_check` and
+`index_status` directly.
+
 **Stale index after large refactor**
 
 Run `/lumen:reindex` inside Claude Code to force a full re-index, or:
@@ -287,6 +307,9 @@ Run `/lumen:reindex` inside Claude Code to force a full re-index, or:
 ```bash
 lumen purge && lumen index .
 ```
+
+In Codex, use the bundled `reindex` skill to refresh the index through the MCP
+server, or run the same CLI commands for a clean rebuild.
 
 **Switching embedding models**
 
@@ -316,7 +339,11 @@ make lint
 
 # Load as a Claude Code plugin from source
 make plugin-dev
+
+# Load the repo-local Codex plugin
+make plugin-dev-codex
 ```
 
 See [CLAUDE.md](CLAUDE.md) for architecture details, design decisions, and
-contribution guidelines.
+contribution guidelines, and [AGENTS.md](AGENTS.md) for Codex-specific repo
+instructions.
