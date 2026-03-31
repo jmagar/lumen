@@ -5,8 +5,15 @@ Claude Code plugin system. It provides fast, semantic search capabilities over
 codebases by leveraging vector embeddings and a Merkle tree structure to
 efficiently detect changes and minimize re-indexing.
 
-This repository is structured as a claude plugin available via the claude
-marketplace.
+This repository has two separate agent integration surfaces:
+
+- Claude Code plugin files at the repo root
+  (`.claude-plugin/`, `hooks/`, `skills/`, `scripts/`)
+- Codex plugin files under `plugins/lumen/`
+
+Do not add a repo-root `.mcp.json` or repo-root `.codex-plugin/`. Claude Code
+reads repo-root `.mcp.json` as project-scoped MCP config, which would change
+runtime behavior for this repository outside the Claude plugin install path.
 
 ## Go Standards
 
@@ -107,6 +114,9 @@ system handles MCP registration, hooks, and skills declaratively via:
 - `hooks/hooks.json` — SessionStart + PreToolUse hooks
 - `skills/` — `/lumen:doctor` and `/lumen:reindex` skills
 
+Codex packaging is intentionally separate under `plugins/lumen/`. Keep the
+Claude plugin root authoritative for Claude-specific manifests and hooks.
+
 ## Environment Variables
 
 | Variable                 | Default                  | Description                                |
@@ -126,8 +136,10 @@ system handles MCP registration, hooks, and skills declaratively via:
 .
 ├── main.go              # 3-line entrypoint
 ├── .claude-plugin/      # Plugin manifest
+├── .agents/             # Codex repo-local marketplace
 ├── hooks/               # Hook declarations
 ├── skills/              # Skill definitions
+├── plugins/lumen/       # Codex plugin package
 ├── scripts/             # Platform wrappers (run.sh, run.bat)
 ├── cmd/
 │   ├── root.go         # Cobra root command
@@ -184,6 +196,8 @@ because slog writes to the log file while tui writes to the process stderr.
 - **Cosine distance KNN**: Normalized for semantic similarity
 - **Plugin system**: Declarative hooks/MCP/skills via `.claude-plugin/`,
   replacing manual install/uninstall
+- **Codex packaging**: Duplicated under `plugins/lumen/` to avoid repo-root
+  `.mcp.json` or `.codex-plugin/` changing Claude behavior
 
 ## Claude Integration Notes
 
