@@ -123,8 +123,8 @@ Manual install:
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 git clone https://github.com/ory/lumen.git "$CODEX_HOME/lumen"
-mkdir -p "$CODEX_HOME/skills"
-ln -s "$CODEX_HOME/lumen/skills" "$CODEX_HOME/skills/lumen"
+mkdir -p "$HOME/.agents/skills"
+ln -s "$CODEX_HOME/lumen/skills" "$HOME/.agents/skills/lumen"
 codex mcp add lumen -- "$CODEX_HOME/lumen/scripts/run.sh" stdio
 ```
 
@@ -134,7 +134,7 @@ Verify with:
 
 ```bash
 codex mcp get lumen
-ls -la "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
+ls -la "$HOME/.agents/skills/lumen"
 ```
 
 **OpenCode**

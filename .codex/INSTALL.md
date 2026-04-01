@@ -18,8 +18,8 @@ server.
 
 2. Create the skills symlink:
    ```bash
-   mkdir -p "$CODEX_HOME/skills"
-   ln -s "$CODEX_HOME/lumen/skills" "$CODEX_HOME/skills/lumen"
+   mkdir -p "$HOME/.agents/skills"
+   ln -s "$CODEX_HOME/lumen/skills" "$HOME/.agents/skills/lumen"
    ```
 
 3. Register the MCP server:
@@ -34,8 +34,8 @@ server.
 ```powershell
 $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
 git clone https://github.com/ory/lumen.git "$codexHome\lumen"
-New-Item -ItemType Directory -Force -Path "$codexHome\skills" | Out-Null
-cmd /c mklink /J "$codexHome\skills\lumen" "$codexHome\lumen\skills"
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.agents\skills" | Out-Null
+cmd /c mklink /J "$env:USERPROFILE\.agents\skills\lumen" "$codexHome\lumen\skills"
 codex mcp add lumen -- "$codexHome\lumen\scripts\run.cmd" stdio
 ```
 
@@ -45,14 +45,14 @@ If you previously used the repo-local Codex marketplace package:
 
 1. Remove the old plugin from Codex's plugin UI.
 2. Register the MCP server with `codex mcp add` as above.
-3. Create the `$CODEX_HOME/skills/lumen` symlink.
+3. Create the `~/.agents/skills/lumen` symlink.
 4. Restart Codex.
 
 ## Verify
 
 ```bash
 codex mcp get lumen
-ls -la "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
+ls -la "$HOME/.agents/skills/lumen"
 ```
 
 ## Updating
@@ -65,7 +65,7 @@ cd "${CODEX_HOME:-$HOME/.codex}/lumen" && git pull
 
 ```bash
 codex mcp remove lumen
-rm "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
+rm "$HOME/.agents/skills/lumen"
 ```
 
 Optionally delete the clone: `rm -rf "${CODEX_HOME:-$HOME/.codex}/lumen"`.
