@@ -1,11 +1,10 @@
 {
   "mcpServers": {
     "lumen": {
-      "command": "./scripts/run.sh",
+      "command": "./scripts/run.cmd",
       "args": [
         "stdio"
-      ],
-      "cwd": "."
+      ]
     }
   }
 }

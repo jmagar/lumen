@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./scripts/run.cmd hook session-start lumen --host cursor"
+      }
+    ]
+  }
+}

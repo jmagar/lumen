@@ -73,8 +73,11 @@ _Claude Code asking about the
    ```bash
    ollama pull ordis/jina-embeddings-v2-base-code
    ```
-2. [Claude Code](https://code.claude.com/docs/en/quickstart) or
-   [Codex](https://developers.openai.com/codex/cli) installed
+2. One of:
+   [Claude Code](https://code.claude.com/docs/en/quickstart),
+   [Cursor](https://cursor.com/),
+   [Codex](https://developers.openai.com/codex/cli), or
+   [OpenCode](https://opencode.ai/)
 
 **Install:**
 
@@ -85,14 +88,31 @@ _Claude Code asking about the
 /plugin install lumen@ory
 ```
 
+**Cursor**
+
+This repository now ships a native Cursor plugin package at
+`.cursor-plugin/plugin.json` with shared `skills/`, `hooks/`, and `mcp.json`
+assets. Publish or load that package through Cursor's plugin workflow.
+
 **Codex**
 
-This repository ships a repo-local Codex marketplace for development and local
-testing. Restart Codex in the repo, open `/plugins`, choose **Lumen Local
-Plugins**, and install `lumen`. The Codex package lives under `plugins/lumen/`.
+Tell Codex:
 
-Official public Codex plugin publishing is not self-serve yet, so the
-repo-local marketplace is the supported Codex install path for now.
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/ory/lumen/refs/heads/main/.codex/INSTALL.md
+```
+
+**OpenCode**
+
+Add the plugin from git:
+
+```json
+{
+  "plugin": ["lumen@git+https://github.com/ory/lumen.git"]
+}
+```
+
+Detailed steps live in `.opencode/INSTALL.md`.
 
 On first Claude session start, Lumen:
 
@@ -104,10 +124,10 @@ On first Claude session start, Lumen:
 Two skills are also available: `/lumen:doctor` (health check) and
 `/lumen:reindex` (forced re-indexing).
 
-After the Codex plugin is installed, the same MCP tools are bundled there as
-well. Codex-native `doctor` and `reindex` skills are included in the plugin,
-and the first `semantic_search` call seeds or refreshes the index
-automatically.
+The same `semantic_search`, `health_check`, and `index_status` MCP tools plus
+the shared `doctor` and `reindex` skills are exposed through the Codex,
+Cursor, and OpenCode surfaces as well. The first `semantic_search` call seeds
+or refreshes the index automatically.
 
 ## What you get
 
@@ -339,11 +359,8 @@ make lint
 
 # Load as a Claude Code plugin from source
 make plugin-dev
-
-# Load the repo-local Codex plugin
-make plugin-dev-codex
 ```
 
 See [CLAUDE.md](CLAUDE.md) for architecture details, design decisions, and
-contribution guidelines, and [AGENTS.md](AGENTS.md) for Codex-specific repo
+contribution guidelines, and [AGENTS.md](AGENTS.md) for repo-specific agent
 instructions.

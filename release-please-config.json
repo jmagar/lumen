@@ -14,7 +14,12 @@
         },
         {
           "type": "json",
-          "path": "plugins/lumen/.codex-plugin/plugin.json",
+          "path": ".cursor-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "package.json",
           "jsonpath": "$.version"
         }
       ]
