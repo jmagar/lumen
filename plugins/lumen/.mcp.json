@@ -4,7 +4,8 @@
       "command": "./scripts/run.sh",
       "args": [
         "stdio"
-      ]
+      ],
+      "cwd": "."
     }
   }
 }
