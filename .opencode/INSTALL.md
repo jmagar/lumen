@@ -20,7 +20,8 @@ Add Lumen to the `plugin` array in your `opencode.json`:
 Restart OpenCode. The plugin registers:
 
 - the shared `skills/` directory from this repository
-- a local `mcp.lumen` server that runs `scripts/run.cmd stdio`
+- a local `mcp.lumen` server that runs `scripts/run.sh stdio` on macOS/Linux
+  and `scripts/run.cmd stdio` on Windows
 
 ## Verify
 

@@ -4,7 +4,11 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pluginRoot = path.resolve(__dirname, "../..");
 const skillsDir = path.join(pluginRoot, "skills");
-const runCommand = path.join(pluginRoot, "scripts", "run.cmd");
+const runCommand = path.join(
+  pluginRoot,
+  "scripts",
+  process.platform === "win32" ? "run.cmd" : "run.sh",
+);
 
 export const LumenPlugin = async () => {
   return {

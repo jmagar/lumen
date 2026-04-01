@@ -79,6 +79,11 @@ _Claude Code asking about the
    [Codex](https://developers.openai.com/codex/cli), or
    [OpenCode](https://opencode.ai/)
 
+**Note:** Installation differs by platform. Claude Code is installed from a
+plugin marketplace. Codex uses a local MCP server plus native skill discovery.
+OpenCode installs from git. Cursor packaging is shipped in this repository and
+is ready for Cursor's plugin distribution workflow.
+
 **Install:**
 
 **Claude Code**
@@ -88,23 +93,59 @@ _Claude Code asking about the
 /plugin install lumen@ory
 ```
 
+Verify by starting a new Claude session and running `/lumen:doctor`.
+
 **Cursor**
 
-This repository now ships a native Cursor plugin package at
-`.cursor-plugin/plugin.json` with shared `skills/`, `hooks/`, and `mcp.json`
-assets. Publish or load that package through Cursor's plugin workflow.
+Lumen ships a native Cursor plugin bundle in this repository:
+
+- `.cursor-plugin/plugin.json` - plugin manifest
+- `mcp.json` - local `lumen` MCP server wiring
+- `hooks/hooks-cursor.json` - SessionStart hook
+- `skills/` - shared `doctor` and `reindex` skills
+
+Use Cursor's plugin installation or distribution workflow with this bundle.
+Detailed packaging notes: [.cursor-plugin/INSTALL.md](.cursor-plugin/INSTALL.md)
+
+Verify by opening a new Cursor agent session and asking it to use the `doctor`
+skill or the Lumen `semantic_search` tool.
 
 **Codex**
 
-Tell Codex:
+Quick install:
 
 ```text
 Fetch and follow instructions from https://raw.githubusercontent.com/ory/lumen/refs/heads/main/.codex/INSTALL.md
 ```
 
+Manual install:
+
+```bash
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+git clone https://github.com/ory/lumen.git "$CODEX_HOME/lumen"
+mkdir -p "$CODEX_HOME/skills"
+ln -s "$CODEX_HOME/lumen/skills" "$CODEX_HOME/skills/lumen"
+codex mcp add lumen -- "$CODEX_HOME/lumen/scripts/run.sh" stdio
+```
+
+Detailed docs: [.codex/INSTALL.md](.codex/INSTALL.md)
+
+Verify with:
+
+```bash
+codex mcp get lumen
+ls -la "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
+```
+
 **OpenCode**
 
-Add the plugin from git:
+Quick install:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/ory/lumen/refs/heads/main/.opencode/INSTALL.md
+```
+
+Manual install:
 
 ```json
 {
@@ -112,17 +153,36 @@ Add the plugin from git:
 }
 ```
 
-Detailed steps live in `.opencode/INSTALL.md`.
+Detailed docs: [.opencode/INSTALL.md](.opencode/INSTALL.md)
 
-On first Claude session start, Lumen:
+Verify with:
+
+```bash
+opencode mcp list
+```
+
+**Updating**
+
+- **Claude Code** - update through Claude's plugin marketplace
+- **Cursor** - refresh or reinstall the bundled plugin through Cursor after
+  updating this repository or the published package
+- **Codex** - `cd "${CODEX_HOME:-$HOME/.codex}/lumen" && git pull`
+- **OpenCode** - restart OpenCode after updating the git ref in `opencode.json`
+
+On first Claude Code or Cursor session start, Lumen:
 
 1. Downloads the binary automatically from the
    [latest GitHub release](https://github.com/ory/lumen/releases)
 2. Indexes your project in the background using Merkle tree change detection
-3. Registers a `semantic_search` MCP tool that Claude uses automatically
+3. Registers a `semantic_search` MCP tool that the host can use automatically
 
-Two skills are also available: `/lumen:doctor` (health check) and
-`/lumen:reindex` (forced re-indexing).
+In Codex and OpenCode, the same binary download and index seeding happen on the
+first `semantic_search` call.
+
+Two shared skills are also available: `doctor` (health check) and `reindex`
+(forced re-indexing). Claude exposes them as `/lumen:doctor` and
+`/lumen:reindex`; the other hosts discover the same shared skill content
+through their native skill systems.
 
 The same `semantic_search`, `health_check`, and `index_status` MCP tools plus
 the shared `doctor` and `reindex` skills are exposed through the Codex,
@@ -317,8 +377,8 @@ ollama pull ordis/jina-embeddings-v2-base-code
 
 Run `/lumen:doctor` inside Claude Code to confirm connectivity.
 
-In Codex, use the bundled `doctor` skill or call `health_check` and
-`index_status` directly.
+In Cursor, Codex, or OpenCode, use the shared `doctor` skill or call
+`health_check` and `index_status` directly.
 
 **Stale index after large refactor**
 
@@ -329,7 +389,8 @@ lumen purge && lumen index .
 ```
 
 In Codex, use the bundled `reindex` skill to refresh the index through the MCP
-server, or run the same CLI commands for a clean rebuild.
+server, or run the same CLI commands for a clean rebuild. The same shared
+`reindex` skill is available in Cursor and OpenCode as well.
 
 **Switching embedding models**
 

@@ -12,18 +12,19 @@ server.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ory/lumen.git ~/.codex/lumen
+   CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+   git clone https://github.com/ory/lumen.git "$CODEX_HOME/lumen"
    ```
 
 2. Create the skills symlink:
    ```bash
-   mkdir -p ~/.agents/skills
-   ln -s ~/.codex/lumen/skills ~/.agents/skills/lumen
+   mkdir -p "$CODEX_HOME/skills"
+   ln -s "$CODEX_HOME/lumen/skills" "$CODEX_HOME/skills/lumen"
    ```
 
 3. Register the MCP server:
    ```bash
-   codex mcp add lumen -- ~/.codex/lumen/scripts/run.cmd stdio
+   codex mcp add lumen -- "$CODEX_HOME/lumen/scripts/run.sh" stdio
    ```
 
 4. Restart Codex.
@@ -31,10 +32,11 @@ server.
 ## Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/ory/lumen.git "$env:USERPROFILE\.codex\lumen"
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.agents\skills" | Out-Null
-cmd /c mklink /J "$env:USERPROFILE\.agents\skills\lumen" "$env:USERPROFILE\.codex\lumen\skills"
-codex mcp add lumen -- "$env:USERPROFILE\.codex\lumen\scripts\run.cmd" stdio
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
+git clone https://github.com/ory/lumen.git "$codexHome\lumen"
+New-Item -ItemType Directory -Force -Path "$codexHome\skills" | Out-Null
+cmd /c mklink /J "$codexHome\skills\lumen" "$codexHome\lumen\skills"
+codex mcp add lumen -- "$codexHome\lumen\scripts\run.cmd" stdio
 ```
 
 ## Migrating from the old repo-local plugin
@@ -43,27 +45,27 @@ If you previously used the repo-local Codex marketplace package:
 
 1. Remove the old plugin from Codex's plugin UI.
 2. Register the MCP server with `codex mcp add` as above.
-3. Create the `~/.agents/skills/lumen` symlink.
+3. Create the `$CODEX_HOME/skills/lumen` symlink.
 4. Restart Codex.
 
 ## Verify
 
 ```bash
 codex mcp get lumen
-ls -la ~/.agents/skills/lumen
+ls -la "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
 ```
 
 ## Updating
 
 ```bash
-cd ~/.codex/lumen && git pull
+cd "${CODEX_HOME:-$HOME/.codex}/lumen" && git pull
 ```
 
 ## Uninstalling
 
 ```bash
 codex mcp remove lumen
-rm ~/.agents/skills/lumen
+rm "${CODEX_HOME:-$HOME/.codex}/skills/lumen"
 ```
 
-Optionally delete the clone: `rm -rf ~/.codex/lumen`.
+Optionally delete the clone: `rm -rf "${CODEX_HOME:-$HOME/.codex}/lumen"`.
