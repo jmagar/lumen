@@ -79,7 +79,10 @@ func (c *StructuredChunker) Chunk(filePath string, content []byte) ([]Chunk, err
 // maxChars, it emits a single chunk. Otherwise it recurses into children.
 func (c *StructuredChunker) recurse(filePath string, node *yaml.Node, path string) []Chunk {
 	text := serializeNode(node)
-	symbol := normalizeSymbol(path)
+	symbol := path
+	if symbol == "" {
+		symbol = "root"
+	}
 
 	if len(text) <= c.maxChars {
 		return c.createNodeChunk(filePath, symbol, text, node)
@@ -93,13 +96,6 @@ func (c *StructuredChunker) recurse(filePath string, node *yaml.Node, path strin
 	default:
 		return c.createNodeChunk(filePath, symbol, text, node)
 	}
-}
-
-func normalizeSymbol(path string) string {
-	if path == "" {
-		return "root"
-	}
-	return path
 }
 
 func (c *StructuredChunker) createNodeChunk(filePath, symbol, text string, node *yaml.Node) []Chunk {
@@ -123,7 +119,10 @@ func (c *StructuredChunker) recurseMapping(filePath string, node *yaml.Node, pat
 func (c *StructuredChunker) processMappingPair(filePath string, node *yaml.Node, path string, i int) []Chunk {
 	keyNode := node.Content[i]
 	valNode := node.Content[i+1]
-	childPath := joinKeyPath(path, keyNode.Value)
+	childPath := keyNode.Value
+	if path != "" {
+		childPath = path + "." + keyNode.Value
+	}
 	wrapper := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{keyNode, valNode}}
 	wrapText := serializeNode(wrapper)
 
@@ -153,10 +152,3 @@ func serializeNode(node *yaml.Node) string {
 	return strings.TrimRight(buf.String(), "\n")
 }
 
-// joinKeyPath builds "parent.child"; if parent is empty returns child.
-func joinKeyPath(parent, child string) string {
-	if parent == "" {
-		return child
-	}
-	return parent + "." + child
-}

@@ -371,7 +371,7 @@ func (s *Store) insertChunksInTransaction(chunks []chunker.Chunk, vectors [][]fl
 }
 
 func insertChunkAndVector(chunkStmt, vecStmt interface {
-	Exec(...interface{}) (sql.Result, error)
+	Exec(...any) (sql.Result, error)
 }, c chunker.Chunk, vec []float32, idx int) error {
 	if _, err := chunkStmt.Exec(c.ID, c.FilePath, c.Symbol, c.Kind, c.StartLine, c.EndLine); err != nil {
 		return fmt.Errorf("insert chunk %s: %w", c.ID, err)
