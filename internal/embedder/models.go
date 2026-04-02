@@ -31,12 +31,6 @@ const DefaultLMStudioModel = "nomic-ai/nomic-embed-code-GGUF"
 // DefaultModel is an alias for DefaultOllamaModel for backward compatibility.
 const DefaultModel = DefaultOllamaModel
 
-// ModelAliases maps alternative model names to their canonical names.
-// LM Studio exposes some models under different names than their repository ID.
-var ModelAliases = map[string]string{
-	"text-embedding-nomic-embed-code": "nomic-ai/nomic-embed-code-GGUF",
-}
-
 // DefaultMinScore is the fallback noise-floor threshold used when the active
 // model is not in KnownModels and dimensions are unknown.
 const DefaultMinScore = 0.20

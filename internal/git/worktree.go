@@ -166,7 +166,7 @@ func ListWorktrees(projectPath string) ([]string, error) {
 	}
 
 	var paths []string
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		if path, ok := strings.CutPrefix(line, "worktree "); ok {
 			// Resolve symlinks so paths are comparable across macOS
 			// /var → /private/var symlink boundaries.
