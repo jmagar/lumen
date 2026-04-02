@@ -58,14 +58,31 @@ func Load() (Config, error) {
 	}
 
 	model := EnvOrDefault("LUMEN_EMBED_MODEL", defaultModel)
-	spec, ok := embedder.KnownModels[model]
-	if !ok {
-		return Config{}, fmt.Errorf("unknown embedding model %q", model)
+
+	overrideDims := EnvOrDefaultInt("LUMEN_EMBED_DIMS", 0)
+	overrideCtx := EnvOrDefaultInt("LUMEN_EMBED_CTX", 0)
+
+	spec, modelKnown := embedder.KnownModels[model]
+	if !modelKnown && overrideDims == 0 {
+		return Config{}, fmt.Errorf("unknown embedding model %q: set LUMEN_EMBED_DIMS to use an unlisted model", model)
 	}
+
+	dims := spec.Dims
+	ctxLength := spec.CtxLength
+
+	if overrideDims > 0 {
+		dims = overrideDims
+	}
+	if overrideCtx > 0 {
+		ctxLength = overrideCtx
+	} else if !modelKnown {
+		ctxLength = 8192
+	}
+
 	return Config{
 		Model:          model,
-		Dims:           spec.Dims,
-		CtxLength:      spec.CtxLength,
+		Dims:           dims,
+		CtxLength:      ctxLength,
 		MaxChunkTokens: EnvOrDefaultInt("LUMEN_MAX_CHUNK_TOKENS", 512),
 		OllamaHost:     EnvOrDefault("OLLAMA_HOST", "http://localhost:11434"),
 		Backend:        backend,
