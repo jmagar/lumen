@@ -81,7 +81,7 @@ _Claude Code asking about the
 
 **Note:** Installation differs by platform. Claude Code is installed from a
 plugin marketplace. Codex uses a local MCP server plus native skill discovery.
-OpenCode installs from git. Cursor packaging is shipped in this repository and
+OpenCode installs from npm. Cursor packaging is shipped in this repository and
 is ready for Cursor's plugin distribution workflow.
 
 **Install:**
@@ -139,17 +139,11 @@ ls -la "$HOME/.agents/skills/lumen"
 
 **OpenCode**
 
-Quick install:
-
-```text
-Fetch and follow instructions from https://raw.githubusercontent.com/ory/lumen/refs/heads/main/.opencode/INSTALL.md
-```
-
-Manual install:
+Add `@ory/lumen-opencode` to the `plugin` array in your `opencode.json`:
 
 ```json
 {
-  "plugin": ["lumen@git+https://github.com/ory/lumen.git"]
+  "plugin": ["@ory/lumen-opencode"]
 }
 ```
 
@@ -167,7 +161,8 @@ opencode mcp list
 - **Cursor** - refresh or reinstall the bundled plugin through Cursor after
   updating this repository or the published package
 - **Codex** - `cd "${CODEX_HOME:-$HOME/.codex}/lumen" && git pull`
-- **OpenCode** - restart OpenCode after updating the git ref in `opencode.json`
+- **OpenCode** - update the version pin in `opencode.json` (e.g.
+  `@ory/lumen-opencode@0.0.27`) and restart OpenCode
 
 On first Claude Code or Cursor session start, Lumen:
 

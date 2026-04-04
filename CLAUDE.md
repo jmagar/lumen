@@ -146,7 +146,7 @@ Codex, Cursor, and OpenCode reuse the same repo-root `skills/`, `hooks/`, and
 ├── hooks/              # Claude + Cursor hook declarations
 ├── skills/             # Shared skill definitions
 ├── mcp.json            # Cursor MCP wiring
-├── package.json        # OpenCode package metadata
+├── package.json        # @ory/lumen-opencode npm package metadata
 ├── scripts/            # Shared launchers and platform wrappers
 ├── cmd/
 │   ├── root.go         # Cobra root command

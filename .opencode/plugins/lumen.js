@@ -16,7 +16,10 @@ export const LumenPlugin = async () => {
       if (!config.mcp.lumen) {
         config.mcp.lumen = {
           type: "local",
-          command: [runCommand, "stdio"],
+          command:
+            process.platform === "win32"
+              ? ["cmd", "/c", runCommand, "stdio"]
+              : ["sh", runCommand, "stdio"],
           enabled: true,
         };
       }

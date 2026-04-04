@@ -1,7 +1,7 @@
 # Installing Lumen for OpenCode
 
-Install Lumen as an OpenCode plugin from git. The plugin registers the shared
-skills directory and a local MCP server automatically.
+Install Lumen as an OpenCode plugin from npm. The plugin registers a local MCP
+server automatically.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ Add Lumen to the `plugin` array in your `opencode.json`:
 
 ```json
 {
-  "plugin": ["lumen@git+https://github.com/ory/lumen.git"]
+  "plugin": ["@ory/lumen-opencode"]
 }
 ```
 
@@ -26,20 +26,21 @@ Restart OpenCode. The plugin registers a local `mcp.lumen` server that runs
 opencode mcp list
 ```
 
-Then ask OpenCode to use the `doctor` or `reindex` skill, or call the Lumen
-MCP tools directly.
+Then ask OpenCode to call the Lumen `semantic_search`, `health_check`, or
+`index_status` MCP tools directly.
 
 ## Updating
 
-Restart OpenCode after updating the git ref in `opencode.json`, or pin a tag:
+Restart OpenCode after updating the version pin in `opencode.json`, or pin a
+specific version:
 
 ```json
 {
-  "plugin": ["lumen@git+https://github.com/ory/lumen.git#v0.0.26"]
+  "plugin": ["@ory/lumen-opencode@0.0.26"]
 }
 ```
 
 ## Uninstalling
 
-Remove the `lumen@git+https://github.com/ory/lumen.git` entry from
-`opencode.json` and restart OpenCode.
+Remove the `@ory/lumen-opencode` entry from `opencode.json` and restart
+OpenCode.
