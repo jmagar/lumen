@@ -111,15 +111,6 @@ func runHookSessionStart(_ *cobra.Command, args []string) error {
 	return enc.Encode(out)
 }
 
-// generateSessionContext builds concise context for the SessionStart hook.
-// If an index exists, it includes stats and top symbols to create a natural
-// data dependency — Claude sees useful data and wants more from the tool.
-// When no index exists, it triggers background pre-warming so the first search
-// in the session is fast.
-func generateSessionContext(mcpName, cwd string) string {
-	return generateSessionContextForHost(hookHostClaude, mcpName, cwd)
-}
-
 func generateSessionContextForHost(host, mcpName, cwd string) string {
 	return generateSessionContextInternalWithDirective(sessionStartDirective(host, mcpName), cwd, config.FindDonorIndex, spawnBackgroundIndexer)
 }
