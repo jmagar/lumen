@@ -20,5 +20,5 @@
   ],
   "skills": "./skills/",
   "hooks": "./hooks/hooks-cursor.json",
-  "mcpServers": "./mcp.json"
+  "mcpServers": "./.cursor/mcp.json"
 }

@@ -5,7 +5,7 @@ Lumen ships a native Cursor plugin bundle in this repository.
 ## Bundle contents
 
 - `.cursor-plugin/plugin.json` - Cursor plugin manifest
-- `mcp.json` - local `lumen` MCP server wiring
+- `.cursor/mcp.json` - local `lumen` MCP server wiring
 - `hooks/hooks-cursor.json` - SessionStart hook
 - `skills/` - shared `doctor` and `reindex` skills
 - `scripts/run.cmd` - cross-platform launcher used by the MCP server and hooks

@@ -1,4 +1,4 @@
-package main
+package release_test
 
 import (
 	"encoding/json"
@@ -9,15 +9,15 @@ import (
 func TestDistributionManifestVersionsStayAligned(t *testing.T) {
 	t.Parallel()
 
-	manifestVersion := readVersionMap(t, ".release-please-manifest.json")["."]
+	manifestVersion := readVersionMap(t, "../../.release-please-manifest.json")["."]
 	if manifestVersion == "" {
 		t.Fatal("missing root version in .release-please-manifest.json")
 	}
 
 	for _, path := range []string{
-		".claude-plugin/plugin.json",
-		".cursor-plugin/plugin.json",
-		"package.json",
+		"../../.claude-plugin/plugin.json",
+		"../../.cursor-plugin/plugin.json",
+		"../../package.json",
 	} {
 		if got := readVersionField(t, path); got != manifestVersion {
 			t.Fatalf("%s version = %q, want %q", path, got, manifestVersion)
