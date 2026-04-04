@@ -162,7 +162,7 @@ opencode mcp list
   updating this repository or the published package
 - **Codex** - `cd "${CODEX_HOME:-$HOME/.codex}/lumen" && git pull`
 - **OpenCode** - update the version pin in `opencode.json` (e.g.
-  `@ory/lumen-opencode@0.0.27`) and restart OpenCode
+  `@ory/lumen-opencode@0.0.29`) and restart OpenCode
 
 On first Claude Code or Cursor session start, Lumen:
 

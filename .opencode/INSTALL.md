@@ -18,7 +18,7 @@ Add Lumen to the `plugin` array in your `opencode.json`:
 ```
 
 Restart OpenCode. The plugin registers a local `mcp.lumen` server that runs
-`scripts/run.sh stdio` on macOS/Linux and `scripts/run.cmd stdio` on Windows.
+`scripts/run.cmd stdio` on all platforms.
 
 ## Verify
 
@@ -36,7 +36,7 @@ specific version:
 
 ```json
 {
-  "plugin": ["@ory/lumen-opencode@0.0.26"]
+  "plugin": ["@ory/lumen-opencode@0.0.29"]
 }
 ```
 
