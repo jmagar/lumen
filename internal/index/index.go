@@ -441,7 +441,10 @@ func (idx *Indexer) indexWithTree(ctx context.Context, projectDir, oldRootHash s
 
 		chunks, err := idx.chunker.Chunk(relPath, content)
 		if err != nil {
-			return stats, fmt.Errorf("chunk %s: %w", relPath, err)
+			if idx.logger != nil {
+				idx.logger.Warn("skipping unparsable file", "path", relPath, "error", err)
+			}
+			continue
 		}
 
 		chunks = splitOversizedChunks(chunks, idx.maxChunkTokens)

@@ -95,6 +95,12 @@ func TestLoad(t *testing.T) {
 		},
 	}
 
+	// Ensure ambient shell env vars don't leak into subtests.
+	t.Setenv("LUMEN_BACKEND", "")
+	t.Setenv("LUMEN_EMBED_MODEL", "")
+	t.Setenv("LUMEN_EMBED_DIMS", "")
+	t.Setenv("LUMEN_EMBED_CTX", "")
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("LUMEN_EMBED_MODEL", tc.model)
