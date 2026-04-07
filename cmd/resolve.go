@@ -24,8 +24,8 @@ import (
 )
 
 // resolveIndexRoot determines the index root and search path for a given
-// combination of path and cwd flags. This is the shared path resolution logic
-// used by both the CLI search command and the MCP handler.
+// combination of path and cwd flags. This is the path resolution logic used by
+// the CLI search command.
 //
 // The returned indexRoot is the directory whose DB should be opened (the
 // project-level index root). searchPath is the directory to use for path-prefix
@@ -33,12 +33,11 @@ import (
 //
 // Resolution order:
 //  1. Determine the search target (path flag, cwd flag, or working directory).
-//  2. Resolve the index root via git root, then ancestor index, then cwd if an
-//     index already exists there.
-//  3. If cwd is provided and differs from the resolved index root, use it as a
-//     preferred root only when an index already exists at that location —
-//     matching the MCP guard that avoids creating a brand-new index at a large
-//     ancestor tree.
+//  2. Resolve the index root from the search path: git root takes priority, then
+//     ancestor index walk.
+//  3. Only if neither git root nor ancestor index was found: if cwd is provided
+//     and has an existing index, adopt it as the index root. This avoids
+//     triggering a full scan of a large ancestor tree on first use.
 func resolveIndexRoot(pathFlag, cwdFlag, model string) (indexRoot, searchPath string, err error) {
 	// Determine the search target path.
 	searchPath = pathFlag
@@ -70,9 +69,10 @@ func resolveIndexRoot(pathFlag, cwdFlag, model string) (indexRoot, searchPath st
 	}
 
 	// When cwd is provided and the search path resolved to itself (no git root,
-	// no ancestor), check if cwd has an existing index and adopt it.  This
-	// matches the MCP guard: only reuse cwd as index root when an index already
-	// exists there, to avoid triggering a full scan of a large ancestor tree.
+	// no ancestor), check if cwd has an existing index and adopt it. Only reuse
+	// cwd as index root when an index already exists there — creating a
+	// brand-new index at an ancestor directory could scan the entire ancestor
+	// tree on first use.
 	if cwdFlag != "" {
 		absCwd, absErr := filepath.Abs(cwdFlag)
 		if absErr != nil {
