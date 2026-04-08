@@ -818,6 +818,8 @@ func TestDefaultLanguages_AllExtensionsPresent(t *testing.T) {
 		".hpp":  []byte("void foo() {}"),
 		".php":  []byte("<?php\nfunction foo() {}"),
 		".cs":   []byte("class Foo {}"),
+		".kt":   []byte("fun foo() {}"),
+		".kts":  []byte("fun foo() {}"),
 		".dart": []byte("void foo() {}"),
 		".md":   []byte("# Introduction\nSome content here.\n"),
 		".mdx":  []byte("# Introduction\nSome content here.\n"),
@@ -1754,6 +1756,26 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 			wantInContent: "// sums values",
 		},
 
+		// ── Kotlin (comment: "line_comment" / "multiline_comment") ──────────
+		{
+			name:     "kotlin: adjacent // comment captured",
+			chunker:  langs[".kt"],
+			filePath: "f.kt",
+			src:      "// adds numbers\nfun add(a: Int, b: Int): Int = a + b\n",
+			symbol:   "add",
+			wantStartLine: 1,
+			wantInContent: "// adds numbers",
+		},
+		{
+			name:     "kotlin: blank line prevents capture",
+			chunker:  langs[".kt"],
+			filePath: "f.kt",
+			src:      "// old\n\nfun sub(a: Int, b: Int): Int = a - b\n",
+			symbol:   "sub",
+			wantStartLine: 3,
+			wantMissing:   "// old",
+		},
+
 		// ── PHP (comment: "comment") ──────────────────────────────────────────
 		{
 			name:          "php: adjacent // comment captured",
@@ -1893,6 +1915,166 @@ func TestTreeSitterChunker_Dart_Comprehensive(t *testing.T) {
 	check("IntCallback", "type")       // type_alias
 	check("Repository", "type")        // abstract class
 	check("Animal.Animal", "function") // constructor
+}
+
+var sampleKotlinComprehensive = []byte(`
+// Top-level function
+fun topLevel(x: Int): String {
+    return x.toString()
+}
+
+// Extension function
+fun String.toSlug(): String {
+    return this.lowercase().replace(" ", "-")
+}
+
+// Suspend function
+suspend fun fetchData(): List<String> {
+    return emptyList()
+}
+
+// Inline function
+inline fun <reified T> createInstance(): T? = null
+
+// Data class with methods and properties
+data class User(val name: String, val age: Int) {
+    fun greet(): String = "Hello, $name"
+
+    val isAdult: Boolean
+        get() = age >= 18
+
+    companion object Factory {
+        fun create(name: String): User = User(name, 0)
+    }
+}
+
+// Sealed class
+sealed class Result {
+    data class Success(val data: String) : Result()
+    data class Error(val message: String) : Result()
+}
+
+// Interface
+interface Repository {
+    fun findById(id: Long): String?
+    fun save(entity: String): String
+}
+
+// Fun interface
+fun interface Predicate {
+    fun test(value: Int): Boolean
+}
+
+// Object declaration
+object Singleton {
+    fun doSomething() {}
+}
+
+// Enum class
+enum class Color(val rgb: Int) {
+    RED(0xFF0000),
+    GREEN(0x00FF00),
+    BLUE(0x0000FF);
+
+    fun isWarm(): Boolean = this == RED
+}
+
+// Type alias
+typealias StringMap = Map<String, String>
+
+// Value class
+@JvmInline
+value class Password(val value: String)
+
+// Operator function
+operator fun User.plus(other: User): User = User(name + other.name, age + other.age)
+
+// Top-level property
+val PI = 3.14159
+
+// Abstract class with nested inner class
+abstract class Base {
+    abstract fun abstractMethod(): Int
+
+    inner class Inner {
+        fun innerMethod(): String = "inner"
+    }
+}
+`)
+
+func TestTreeSitterChunker_Kotlin(t *testing.T) {
+	langs := chunker.DefaultLanguages(512)
+	c, ok := langs[".kt"]
+	if !ok {
+		t.Fatal("missing chunker for .kt")
+	}
+
+	chunks, err := c.Chunk("sample.kt", sampleKotlinComprehensive)
+	if err != nil {
+		t.Fatalf("Chunk: %v", err)
+	}
+
+	bySymbolKind := make(map[string]map[string]bool)
+	for _, ch := range chunks {
+		if bySymbolKind[ch.Symbol] == nil {
+			bySymbolKind[ch.Symbol] = make(map[string]bool)
+		}
+		bySymbolKind[ch.Symbol][ch.Kind] = true
+	}
+
+	check := func(symbol, kind string) {
+		t.Helper()
+		kinds, ok := bySymbolKind[symbol]
+		if !ok || !kinds[kind] {
+			t.Errorf("missing chunk %q/%q (got: %v)", symbol, kind, symbolNames(chunks))
+		}
+	}
+
+	// Top-level functions
+	check("topLevel", "function")
+	check("toSlug", "function")       // extension function
+	check("fetchData", "function")    // suspend function
+	check("createInstance", "function") // inline generic function
+	check("plus", "function")         // operator function
+
+	// Classes
+	check("User", "type")             // data class
+	check("Result", "type")           // sealed class
+	check("Repository", "type")       // interface (class_declaration in grammar)
+	check("Predicate", "type")        // fun interface
+	check("Password", "type")         // value class
+	check("Base", "type")             // abstract class
+	check("Color", "type")            // enum class
+
+	// Object declarations
+	check("Singleton", "type")
+	check("User.Factory", "type")     // named companion object (qualified with enclosing class)
+
+	// Nested classes (qualified with enclosing sealed class)
+	check("Result.Success", "type")
+	check("Result.Error", "type")
+
+	// Methods (qualified with enclosing class)
+	check("User.greet", "function")
+	check("Singleton.doSomething", "function")
+	check("Factory.create", "function")
+	check("Color.isWarm", "function")
+
+	// Properties
+	check("User.isAdult", "var")
+	check("PI", "var")                // top-level property
+
+	// Enum entries
+	check("Color.RED", "var")
+	check("Color.GREEN", "var")
+	check("Color.BLUE", "var")
+
+	// Type alias
+	check("StringMap", "type")
+
+	// Inner class
+	check("Base.Inner", "type")
+	check("Inner.innerMethod", "function")
 }
 
 // mustPyChunker creates a Python TreeSitterChunker for use in tests.
