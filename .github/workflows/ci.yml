@@ -111,89 +111,54 @@ jobs:
           LUMEN_EMBED_MODEL: all-minilm
           LUMEN_EMBED_DIMS: '384'
 
-  download:
-    name: Download (${{ matrix.os }})
+  build:
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     if: github.actor != 'release-please[bot]'
-    timeout-minutes: 10
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
-      # Happy path: set manifest to real latest release, download, verify
-      - name: Get latest release tag
-        id: latest
-        run: |
-          TAG=$(curl -sfL -H "Authorization: token $GITHUB_TOKEN" \
-            https://api.github.com/repos/ory/lumen/releases/latest \
-            | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-        shell: bash
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
 
-      - name: Set manifest to latest release
-        run: |
-          printf '{\n  ".": "%s"\n}\n' "${{ steps.latest.outputs.version }}" > .release-please-manifest.json
+      - name: Build (Unix)
+        run: CGO_ENABLED=1 go build -tags=fts5 -o bin/lumen .
         shell: bash
+        if: runner.os != 'Windows'
 
-      - name: Download via run script (happy path)
-        id: happy_unix
+      - name: Build (Windows)
         run: |
-          OUTPUT=$(scripts/run.sh version)
+          set CGO_ENABLED=1
+          go build -tags=fts5 -o bin\lumen.exe .
+        shell: cmd
+        if: runner.os == 'Windows'
+
+      - name: Verify version output (Unix)
+        id: ver_unix
+        run: |
+          OUTPUT=$(bin/lumen version)
           echo "version=$OUTPUT" >> "$GITHUB_OUTPUT"
         shell: bash
         if: runner.os != 'Windows'
 
-      - name: Download via run.bat (happy path)
-        id: happy_win
+      - name: Verify version output (Windows)
+        id: ver_win
         run: |
-          for /f "delims=" %%i in ('scripts\run.bat version') do set "VER=%%i"
+          for /f "delims=" %%i in ('bin\lumen.exe version') do set "VER=%%i"
           echo version=%VER%>> %GITHUB_OUTPUT%
         shell: cmd
         if: runner.os == 'Windows'
 
-      - name: Verify version output (happy path)
+      - name: Assert semver pattern
         run: |
-          VER="${{ steps.happy_unix.outputs.version }}${{ steps.happy_win.outputs.version }}"
+          VER="${{ steps.ver_unix.outputs.version }}${{ steps.ver_win.outputs.version }}"
           echo "Binary reported version: $VER"
-          echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]' \
-            || { echo "ERROR: version output does not match semver pattern"; exit 1; }
-        shell: bash
-
-      # Fallback path: set manifest to nonexistent version, verify fallback
-      - name: Clear downloaded binary
-        run: rm -rf bin/
-        shell: bash
-
-      - name: Set manifest to nonexistent version
-        run: |
-          printf '{\n  ".": "99.99.99"\n}\n' > .release-please-manifest.json
-        shell: bash
-
-      - name: Download via run script (fallback path)
-        id: fallback_unix
-        run: |
-          OUTPUT=$(scripts/run.sh version)
-          echo "version=$OUTPUT" >> "$GITHUB_OUTPUT"
-        shell: bash
-        if: runner.os != 'Windows'
-
-      - name: Download via run.bat (fallback path)
-        id: fallback_win
-        run: |
-          for /f "delims=" %%i in ('scripts\run.bat version') do set "VER=%%i"
-          echo version=%VER%>> %GITHUB_OUTPUT%
-        shell: cmd
-        if: runner.os == 'Windows'
-
-      - name: Verify version output (fallback path)
-        run: |
-          VER="${{ steps.fallback_unix.outputs.version }}${{ steps.fallback_win.outputs.version }}"
-          echo "Fallback binary reported version: $VER"
           echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]' \
             || { echo "ERROR: version output does not match semver pattern"; exit 1; }
         shell: bash
