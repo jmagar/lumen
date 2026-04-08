@@ -128,14 +128,23 @@ jobs:
           cache: true
 
       - name: Build (Unix)
-        run: CGO_ENABLED=1 go build -tags=fts5 -o bin/lumen .
+        run: |
+          VERSION=$(grep -o '"[0-9][^"]*"' .release-please-manifest.json | tr -d '"' | head -1)
+          CGO_ENABLED=1 go build -tags=fts5 \
+            -ldflags="-X github.com/ory/lumen/cmd.buildVersion=$VERSION" \
+            -o bin/lumen .
         shell: bash
         if: runner.os != 'Windows'
 
       - name: Build (Windows)
         run: |
+          for /f "tokens=*" %%l in ('findstr /r "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*" .release-please-manifest.json') do set "LINE=%%l"
+          for /f "tokens=2 delims=:" %%v in ("!LINE!") do set "RAW=%%v"
+          set RAW=%RAW: =%
+          set VERSION=%RAW:"=%
+          set VERSION=%VERSION:,=%
           set CGO_ENABLED=1
-          go build -tags=fts5 -o bin\lumen.exe .
+          go build -tags=fts5 -ldflags="-X github.com/ory/lumen/cmd.buildVersion=%VERSION%" -o bin\lumen.exe .
         shell: cmd
         if: runner.os == 'Windows'
 
