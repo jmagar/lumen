@@ -45,12 +45,12 @@ if ! curl -fL --progress-bar --max-time 300 --retry 3 --retry-delay 2 "$URL" -o 
   echo "Version $VERSION not found, resolving latest release..." >&2
 
   # Use GITHUB_TOKEN for auth when available (CI), fall back to unauthenticated
-  AUTH_HEADER=""
+  AUTH_ARGS=()
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    AUTH_HEADER="-H \"Authorization: token $GITHUB_TOKEN\""
+    AUTH_ARGS=(-H "Authorization: token $GITHUB_TOKEN")
   fi
 
-  LATEST_TAG=$(curl -sfL $AUTH_HEADER \
+  LATEST_TAG=$(curl -sfL "${AUTH_ARGS[@]}" \
     --max-time 30 --retry 2 --retry-delay 2 \
     "https://api.github.com/repos/${REPO}/releases/latest" \
     | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
@@ -84,18 +84,18 @@ Same logic adapted for Windows batch scripting:
 
 ```bat
 :: Attempt primary download
-curl -sfL "!URL!" -o "%BINARY%"
+curl -sfL --max-time 300 --retry 3 --retry-delay 2 "!URL!" -o "%BINARY%"
 if errorlevel 1 (
   echo Version !VERSION! not found, resolving latest release... >&2
 
   :: Use GITHUB_TOKEN for auth when available
   set "AUTH_HEADER="
-  if defined GITHUB_TOKEN set "AUTH_HEADER=-H \"Authorization: token %GITHUB_TOKEN%\""
+  if defined GITHUB_TOKEN set "AUTH_HEADER=-H "Authorization: token %GITHUB_TOKEN%""
 
   :: Query GitHub API for latest release tag
   set "TMPJSON=%TEMP%\lumen-latest.json"
   curl -sfL %AUTH_HEADER% --max-time 30 --retry 2 --retry-delay 2 ^
-    "https://api.github.com/!REPO!/releases/latest" -o "!TMPJSON!"
+    "https://api.github.com/repos/!REPO!/releases/latest" -o "!TMPJSON!"
 
   :: Extract tag_name using findstr + for /f
   set "LATEST_TAG="
@@ -107,8 +107,14 @@ if errorlevel 1 (
   )
   del "!TMPJSON!" 2>nul
 
+  :: Validate: tag must be non-empty and start with v followed by a digit
   if "!LATEST_TAG!"=="" (
     echo Error: could not resolve latest release from GitHub API >&2
+    exit /b 1
+  )
+  echo !LATEST_TAG! | findstr /r "^v[0-9]" >nul 2>&1
+  if errorlevel 1 (
+    echo Error: resolved tag "!LATEST_TAG!" does not look like a version >&2
     exit /b 1
   )
 
@@ -117,7 +123,7 @@ if errorlevel 1 (
   set "ASSET=lumen-!VERSION:~1!-windows-!ARCH!.exe"
   set "URL=https://github.com/!REPO!/releases/download/!VERSION!/!ASSET!"
 
-  curl -sfL "!URL!" -o "%BINARY%"
+  curl -sfL --max-time 300 --retry 3 --retry-delay 2 "!URL!" -o "%BINARY%"
   if errorlevel 1 (
     echo Error: fallback download also failed >&2
     exit /b 1
