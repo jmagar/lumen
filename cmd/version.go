@@ -27,7 +27,7 @@ func init() {
 		Use:   "version",
 		Short: "Print the lumen version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(buildVersion)
+			fmt.Fprintln(cmd.OutOrStdout(), buildVersion)
 		},
 	})
 }
