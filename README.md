@@ -258,7 +258,7 @@ Supports **13 language families** with semantic chunking (9 benchmarked):
 | Python           | tree-sitter | `.py`                                     | Benchmarked: Perfect quality, -36% tokens     |
 | TypeScript / TSX | tree-sitter | `.ts`, `.tsx`                             | Benchmarked: -64% tokens, -33% time           |
 | JavaScript / JSX | tree-sitter | `.js`, `.jsx`, `.mjs`                     | Benchmarked: -66% tokens, -53% time           |
-| Kotlin           | tree-sitter | `.kt`, `.kts`                             | Supported                                     |
+| Kotlin           | tree-sitter | `.kt`, `.kts`                             | Benchmarked: -7% cost                         |
 | Dart             | tree-sitter | `.dart`                                   | Benchmarked: -76% cost, -82% tokens, -79% time |
 | Rust             | tree-sitter | `.rs`                                     | Benchmarked: -39% cost, -34% time             |
 | Ruby             | tree-sitter | `.rb`                                     | Benchmarked: -24% cost, -11% time             |
