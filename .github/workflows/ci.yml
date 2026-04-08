@@ -136,7 +136,8 @@ jobs:
         shell: bash
 
       - name: Set manifest to latest release
-        run: printf '{\n  ".": "%s"\n}\n' "${{ steps.latest.outputs.version }}" > .release-please-manifest.json
+        run: |
+          printf '{\n  ".": "%s"\n}\n' "${{ steps.latest.outputs.version }}" > .release-please-manifest.json
         shell: bash
 
       - name: Download via run script (happy path)
@@ -169,7 +170,8 @@ jobs:
         shell: bash
 
       - name: Set manifest to nonexistent version
-        run: printf '{\n  ".": "99.99.99"\n}\n' > .release-please-manifest.json
+        run: |
+          printf '{\n  ".": "99.99.99"\n}\n' > .release-please-manifest.json
         shell: bash
 
       - name: Download via run script (fallback path)
