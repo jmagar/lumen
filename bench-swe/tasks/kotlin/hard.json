@@ -1,0 +1,18 @@
+{
+  "id": "kotlin-hard",
+  "language": "kotlin",
+  "repo": "https://github.com/ktorio/ktor",
+  "base_commit": "49fceb695198557b534f613aaca732d48aa87e0f",
+  "fix_commit": "8f8ec7a62fe9a32e823905eea6b15b61b5831cc2",
+  "issue_url": "https://youtrack.jetbrains.com/issue/KTOR-1662",
+  "issue_title": "CORS doesn't reject bad headers",
+  "issue_body": "After introducing the accepted headers predicate feature, the CORS plugin started accepting non-simple headers by default when it should be rejecting them.\n\nSteps to reproduce:\n1. Install the CORS plugin with specific allowed headers (e.g., Range)\n2. Send an OPTIONS preflight request with Access-Control-Request-Headers containing multiple headers, where at least one header is NOT in the allowed set (e.g., 'Accept,Content-Type' when only simple headers plus Range are allowed)\n3. The server responds with 200 OK instead of 403 Forbidden\n\nExpected behavior: The preflight request should be rejected (403 Forbidden) because Content-Type is not a simple header and was not explicitly allowed in the CORS configuration.\n\nActual behavior: The preflight request succeeds (200 OK) as long as the first header in the list matches. It appears that only the first header in the request is being validated, and the remaining headers are skipped.\n\nThis is a regression introduced when the header predicate feature was added. The validation of multiple request headers appears to short-circuit after checking only the first header.",
+  "gold_patch_file": "patches/kotlin-hard.patch",
+  "expected_files": [
+    "ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt",
+    "ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt"
+  ],
+  "setup_commands": [],
+  "test_command": "./gradlew :ktor-server:ktor-server-tests:jvmTest --tests 'io.ktor.tests.server.features.CORSTest.testPreFlightMultipleHeadersRegression' -x dokkaHtmlMultiModule",
+  "timeout_s": 900
+}

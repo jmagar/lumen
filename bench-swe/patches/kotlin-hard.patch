@@ -1,0 +1,119 @@
+diff --git a/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt b/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
+index 54a772ebb..18e8553ef 100644
+--- a/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
++++ b/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
+@@ -196,16 +196,13 @@ public class CORS(configuration: Configuration) {
+         return allowsAnyHost || normalizeOrigin(origin) in hostsNormalized
+     }
+ 
+-    private fun ApplicationCall.corsCheckRequestHeaders(requestHeaders: List<String>): Boolean {
+-
+-        requestHeaders.all { header ->
+-            return header in allHeadersSet || headerMatchesAPredicate(header)
++    private fun corsCheckRequestHeaders(requestHeaders: List<String>): Boolean {
++        return requestHeaders.all { header ->
++            header in allHeadersSet || headerMatchesAPredicate(header)
+         }
+-
+-        return requestHeaders.none { it !in allHeadersSet }
+     }
+ 
+-    private fun ApplicationCall.headerMatchesAPredicate(header: String): Boolean {
++    private fun headerMatchesAPredicate(header: String): Boolean {
+         return headerPredicates.any { it(header) }
+     }
+ 
+diff --git a/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt b/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
+index c49f14528..12ca79e45 100644
+--- a/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
++++ b/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
+@@ -198,7 +198,10 @@ class CORSTest {
+             }.let { call ->
+                 assertEquals(HttpStatusCode.OK, call.response.status())
+                 assertEquals("http://my-host", call.response.headers[HttpHeaders.AccessControlAllowOrigin])
+-                assertEquals(setOf(HttpHeaders.ETag, HttpHeaders.Vary), call.response.headers[HttpHeaders.AccessControlExposeHeaders]?.split(", ")?.toSet())
++                assertEquals(
++                    setOf(HttpHeaders.ETag, HttpHeaders.Vary),
++                    call.response.headers[HttpHeaders.AccessControlExposeHeaders]?.split(", ")?.toSet()
++                )
+                 assertEquals("OK", call.response.content)
+             }
+         }
+@@ -503,6 +506,32 @@ class CORSTest {
+         }
+     }
+ 
++    @Test
++    fun testPreFlightMultipleHeadersRegression(): Unit = withTestApplication {
++        application.install(CORS) {
++            anyHost()
++            header(HttpHeaders.Range)
++        }
++
++        application.routing {
++            get("/") {
++                call.respond("OK")
++            }
++        }
++
++        // simple `Content-Type` request header is not allowed by default
++        handleRequest(HttpMethod.Options, "/") {
++            addHeader(HttpHeaders.Origin, "http://my-host")
++            addHeader(HttpHeaders.AccessControlRequestMethod, "GET")
++            addHeader(
++                HttpHeaders.AccessControlRequestHeaders,
++                "${HttpHeaders.Accept},${HttpHeaders.ContentType}"
++            )
++        }.let { call ->
++            assertEquals(HttpStatusCode.Forbidden, call.response.status())
++        }
++    }
++
+     @Test
+     fun testPreFlight() {
+         withTestApplication {
+@@ -726,7 +755,10 @@ class CORSTest {
+                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom-header1, custom-header2")
+             }.let { call ->
+                 assertEquals(HttpStatusCode.OK, call.response.status())
+-                assertEquals("custom-header1, custom-header2", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
++                assertEquals(
++                    "custom-header1, custom-header2",
++                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
++                )
+             }
+         }
+     }
+@@ -752,7 +784,10 @@ class CORSTest {
+                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom-header1, custom-header2")
+             }.let { call ->
+                 assertEquals(HttpStatusCode.OK, call.response.status())
+-                assertEquals("Range, custom-header1, custom-header2", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
++                assertEquals(
++                    "Range, custom-header1, custom-header2",
++                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
++                )
+             }
+         }
+     }
+@@ -827,7 +862,10 @@ class CORSTest {
+                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom1-header, custom2-header")
+             }.let { call ->
+                 assertEquals(HttpStatusCode.OK, call.response.status())
+-                assertEquals("custom1-header, custom2-header", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
++                assertEquals(
++                    "custom1-header, custom2-header",
++                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
++                )
+             }
+         }
+     }
+@@ -837,7 +875,7 @@ class CORSTest {
+         withTestApplication {
+             application.install(CORS) {
+                 anyHost()
+-                allowHeaders { name -> name.startsWith("custom-matcher")}
++                allowHeaders { name -> name.startsWith("custom-matcher") }
+             }
+ 
+             application.routing {
