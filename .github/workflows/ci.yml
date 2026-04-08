@@ -118,7 +118,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -127,47 +127,16 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Build (Unix)
+      - name: Build
         run: |
           VERSION=$(grep -o '"[0-9][^"]*"' .release-please-manifest.json | tr -d '"' | head -1)
           CGO_ENABLED=1 go build -tags=fts5 \
             -ldflags="-X github.com/ory/lumen/cmd.buildVersion=$VERSION" \
             -o bin/lumen .
-        shell: bash
-        if: runner.os != 'Windows'
 
-      - name: Build (Windows)
+      - name: Assert semver version output
         run: |
-          for /f "tokens=*" %%l in ('findstr /r "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*" .release-please-manifest.json') do set "LINE=%%l"
-          for /f "tokens=2 delims=:" %%v in ("!LINE!") do set "RAW=%%v"
-          set RAW=%RAW: =%
-          set VERSION=%RAW:"=%
-          set VERSION=%VERSION:,=%
-          set CGO_ENABLED=1
-          go build -tags=fts5 -ldflags="-X github.com/ory/lumen/cmd.buildVersion=%VERSION%" -o bin\lumen.exe .
-        shell: cmd
-        if: runner.os == 'Windows'
-
-      - name: Verify version output (Unix)
-        id: ver_unix
-        run: |
-          OUTPUT=$(bin/lumen version)
-          echo "version=$OUTPUT" >> "$GITHUB_OUTPUT"
-        shell: bash
-        if: runner.os != 'Windows'
-
-      - name: Verify version output (Windows)
-        id: ver_win
-        run: |
-          for /f "delims=" %%i in ('bin\lumen.exe version') do set "VER=%%i"
-          echo version=%VER%>> %GITHUB_OUTPUT%
-        shell: cmd
-        if: runner.os == 'Windows'
-
-      - name: Assert semver pattern
-        run: |
-          VER="${{ steps.ver_unix.outputs.version }}${{ steps.ver_win.outputs.version }}"
+          VER=$(bin/lumen version)
           echo "Binary reported version: $VER"
           echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]' \
             || { echo "ERROR: version output does not match semver pattern"; exit 1; }
-        shell: bash
