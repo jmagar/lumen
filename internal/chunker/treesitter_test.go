@@ -184,7 +184,7 @@ func TestTreeSitterChunker_TypeScript(t *testing.T) {
 	check("add", "function")
 	check("Calculator", "type")
 	check("Base", "type")
-	check("multiply", "method")
+	check("Calculator.multiply", "method")
 	check("Shape", "interface")
 	check("Color", "type")
 }
@@ -291,7 +291,7 @@ func TestTreeSitterChunker_JavaScript(t *testing.T) {
 
 	check("greet", "function")
 	check("Animal", "type")
-	check("speak", "method")
+	check("Animal.speak", "method")
 }
 
 var sampleModernTypeScript = []byte(`export const greet = (name: string): string => {
@@ -499,8 +499,8 @@ func TestTreeSitterChunker_TSX(t *testing.T) {
 	if !bySymbolKind["render"]["function"] {
 		t.Errorf("missing chunk render/function (got symbols: %v)", symbolNames(chunks))
 	}
-	if !bySymbolKind["render"]["method"] {
-		t.Errorf("missing chunk render/method (got symbols: %v)", symbolNames(chunks))
+	if !bySymbolKind["App.render"]["method"] {
+		t.Errorf("missing chunk App.render/method (got symbols: %v)", symbolNames(chunks))
 	}
 	if !bySymbolKind["App"]["type"] {
 		t.Errorf("missing chunk App/type (got symbols: %v)", symbolNames(chunks))
@@ -589,7 +589,7 @@ func TestTreeSitterChunker_Java(t *testing.T) {
 	}
 
 	check("Calculator", "type")
-	check("add", "method")
+	check("Calculator.add", "method")
 }
 
 var sampleC = []byte(`int add(int a, int b) {
@@ -1088,14 +1088,14 @@ func TestTreeSitterChunker_Java_Comprehensive(t *testing.T) {
 		}
 	}
 
-	check("Calculator", "type")      // class
-	check("Calculator", "function")  // constructor
-	check("add", "method")           // method
-	check("Computable", "interface") // interface
-	check("Status", "type")          // enum
-	check("MyAnnotation", "type")    // annotation_type
-	check("Point", "type")           // record
-	check("MAX", "var")              // field
+	check("Calculator", "type")              // class
+	check("Calculator.Calculator", "function") // constructor
+	check("Calculator.add", "method")          // method
+	check("Computable", "interface")           // interface
+	check("Status", "type")                    // enum
+	check("MyAnnotation", "type")              // annotation_type
+	check("Point", "type")                     // record
+	check("Calculator.MAX", "var")             // field
 }
 
 var samplePHPComprehensive = []byte(`<?php
@@ -1436,13 +1436,13 @@ func TestTreeSitterChunker_TypeScript_Comprehensive(t *testing.T) {
 	check("genFn", "function")   // generator
 	check("arrowFn", "function") // arrow function
 	check("MyClass", "type")
-	check("method", "method")
+	check("MyClass.method", "method")
 	check("BaseClass", "type") // abstract class
 	check("IShape", "interface")
 	check("Color", "type")     // type_alias
 	check("Direction", "type") // enum
 	check("MAX", "const")      // exported const
-	check("write", "method")   // method_signature in interface
+	check("write", "method") // method_signature in interface
 }
 
 // findChunk returns the first chunk with the given symbol from chunks.
@@ -1693,8 +1693,6 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 		},
 
 		// ── Java (comment: "line_comment" / "block_comment") ─────────────────
-		// Java class_declaration is not in findEnclosingSymbol, so methods are
-		// reported with their bare name (not class-qualified).
 		{
 			name:     "java: adjacent // comment captured (line_comment)",
 			chunker:  mustJava,
@@ -1703,7 +1701,7 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 				"    // computes sum\n" +
 				"    public int add(int a, int b) { return a + b; }\n" +
 				"}\n",
-			symbol:        "add",
+			symbol:        "Foo.add",
 			wantStartLine: 2,
 			wantInContent: "// computes sum",
 		},
@@ -1715,7 +1713,7 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 				"    /** @return product */\n" +
 				"    public int mul(int a, int b) { return a * b; }\n" +
 				"}\n",
-			symbol:        "mul",
+			symbol:        "Bar.mul",
 			wantStartLine: 2,
 			wantInContent: "/** @return product */",
 		},

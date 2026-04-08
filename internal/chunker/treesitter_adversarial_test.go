@@ -240,7 +240,7 @@ func TestAdversarial_TypeScript(t *testing.T) {
 
 	// Classes
 	cs.mustHave("MyClass", "type")
-	cs.mustHave("method", "method")
+	cs.mustHave("MyClass.method", "method")
 	cs.mustHave("AbstractBase", "type")
 
 	// Interfaces
@@ -317,7 +317,7 @@ func TestAdversarial_TSX(t *testing.T) {
 	cs.mustHave("Button", "function")
 	cs.mustHave("Card", "function")
 	cs.mustHave("App", "type")
-	cs.mustHave("render", "method")
+	cs.mustHave("App.render", "method")
 	cs.mustHave("Props", "interface")
 	cs.mustHave("Theme", "type")
 	cs.mustHave("Wrapper", "function")
@@ -381,7 +381,7 @@ func TestAdversarial_JavaScript(t *testing.T) {
 	cs.mustHave("ExportedClass", "type")
 	cs.mustHave("defaultExport", "function")
 	cs.mustHave("Animal", "type")
-	cs.mustHave("speak", "method")
+	cs.mustHave("Animal.speak", "method")
 
 	cs.mustNotHave("commented", "function")
 }
@@ -589,12 +589,12 @@ func TestAdversarial_Java(t *testing.T) {
 	t.Logf("Extracted chunks:\n%s", cs.dump())
 
 	cs.mustHave("Calculator", "type")
-	cs.mustHave("Calculator", "function") // constructor
-	cs.mustHave("add", "method")
-	cs.mustHave("MAX", "var")
-	cs.mustHave("name", "var") // field
-	cs.mustHave("InnerClass", "type")
-	cs.mustHave("innerMethod", "method")
+	cs.mustHave("Calculator.Calculator", "function") // constructor
+	cs.mustHave("Calculator.add", "method")
+	cs.mustHave("Calculator.MAX", "var")
+	cs.mustHave("Calculator.name", "var") // field
+	cs.mustHave("Calculator.InnerClass", "type")
+	cs.mustHave("InnerClass.innerMethod", "method")
 	cs.mustHave("Computable", "interface")
 	cs.mustHave("compute", "method")
 	cs.mustHave("Status", "type")

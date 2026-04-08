@@ -227,15 +227,20 @@ func findEnclosingSymbol(node *sitter.Node, content []byte) string {
 			if n := current.ChildByFieldName("name"); n != nil {
 				return n.Content(content)
 			}
-		case "class_body", "extension_body":
-			// Dart: the body node sits between the method and the enclosing type.
-			// Only qualify for Dart-specific parent types to avoid affecting TS/JS/Java
-			// which also use class_body but with class_declaration (not class_definition).
+		case "class_body", "extension_body", "enum_class_body":
 			if p := current.Parent(); p != nil {
 				switch p.Type() {
-				case "class_definition", "extension_declaration", "enum_declaration":
+				case "class_definition", "extension_declaration", "enum_declaration",
+					"class_declaration", "object_declaration", "companion_object":
+					// Try field-based name first (Java, C#, TS have name: field)
 					if n := p.ChildByFieldName("name"); n != nil {
 						return n.Content(content)
+					}
+					// Fallback: scan for type_identifier/identifier child (Kotlin has no name: field)
+					for i := 0; i < int(p.NamedChildCount()); i++ {
+						if c := p.NamedChild(i); c.Type() == "type_identifier" || c.Type() == "identifier" {
+							return c.Content(content)
+						}
 					}
 				case "mixin_declaration":
 					for i := 0; i < int(p.ChildCount()); i++ {
