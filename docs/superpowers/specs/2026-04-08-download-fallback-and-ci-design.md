@@ -37,28 +37,93 @@ end-to-end on any platform.
 The current download block (lines 33-57) attempts a single `curl -fL` for the
 manifest-pinned version. The change wraps this in a fallback:
 
-```
-1. Read VERSION from .release-please-manifest.json (existing logic)
-2. Attempt curl -fL for VERSION
-3. If curl fails (non-zero exit):
-   a. Log warning to stderr: "Version $VERSION not found, resolving latest release..."
-   b. Query GitHub API: curl -sfL https://api.github.com/repos/ory/lumen/releases/latest
-   c. Parse tag_name with sed (no jq dependency): sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
-   d. If tag_name resolved, retry download with the new version
-   e. If API call also fails, exit 1 with error message
+```bash
+# 1. Read VERSION from .release-please-manifest.json (existing logic)
+# 2. Attempt download
+if ! curl -fL --progress-bar --max-time 300 --retry 3 --retry-delay 2 "$URL" -o "$BINARY"; then
+  # 3. Fallback: resolve latest release via GitHub API
+  echo "Version $VERSION not found, resolving latest release..." >&2
+
+  # Use GITHUB_TOKEN for auth when available (CI), fall back to unauthenticated
+  AUTH_HEADER=""
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    AUTH_HEADER="-H \"Authorization: token $GITHUB_TOKEN\""
+  fi
+
+  LATEST_TAG=$(curl -sfL $AUTH_HEADER \
+    --max-time 30 --retry 2 --retry-delay 2 \
+    "https://api.github.com/repos/${REPO}/releases/latest" \
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+  # Validate: tag must look like a version (vN.N.N...)
+  if [ -z "$LATEST_TAG" ] || ! echo "$LATEST_TAG" | grep -qE '^v[0-9]'; then
+    echo "Error: could not resolve latest release from GitHub API" >&2
+    exit 1
+  fi
+
+  echo "Falling back to ${LATEST_TAG}..." >&2
+  VERSION="$LATEST_TAG"
+  ASSET="lumen-${VERSION#v}-${OS}-${ARCH}"
+  URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
+
+  curl -fL --progress-bar --max-time 300 --retry 3 --retry-delay 2 "$URL" -o "$BINARY"
+fi
+chmod +x "$BINARY"
 ```
 
 The fallback only activates on download failure, preserving the current
-deterministic manifest-first behavior when releases are healthy.
+deterministic manifest-first behavior when releases are healthy. When
+`GITHUB_TOKEN` is set (as in CI), the API call uses it for authentication,
+avoiding unauthenticated rate limits. On end-user machines without the token,
+the 60 req/hr unauthenticated limit is sufficient since this is a one-time
+fallback.
 
 ### 2. Fallback in `scripts/run.bat`
 
 Same logic adapted for Windows batch scripting:
 
-- Use `curl -sfL` to hit the GitHub API endpoint on download failure.
-- Parse the JSON response using `findstr` and string manipulation (no external
-  JSON tools).
-- Retry download with the resolved version.
+```bat
+:: Attempt primary download
+curl -sfL "!URL!" -o "%BINARY%"
+if errorlevel 1 (
+  echo Version !VERSION! not found, resolving latest release... >&2
+
+  :: Use GITHUB_TOKEN for auth when available
+  set "AUTH_HEADER="
+  if defined GITHUB_TOKEN set "AUTH_HEADER=-H \"Authorization: token %GITHUB_TOKEN%\""
+
+  :: Query GitHub API for latest release tag
+  set "TMPJSON=%TEMP%\lumen-latest.json"
+  curl -sfL %AUTH_HEADER% --max-time 30 --retry 2 --retry-delay 2 ^
+    "https://api.github.com/!REPO!/releases/latest" -o "!TMPJSON!"
+
+  :: Extract tag_name using findstr + for /f
+  set "LATEST_TAG="
+  for /f "tokens=2 delims=:" %%a in ('findstr /r "tag_name" "!TMPJSON!"') do (
+    set "LATEST_TAG=%%~a"
+    set "LATEST_TAG=!LATEST_TAG: =!"
+    set "LATEST_TAG=!LATEST_TAG:,=!"
+    set "LATEST_TAG=!LATEST_TAG:"=!"
+  )
+  del "!TMPJSON!" 2>nul
+
+  if "!LATEST_TAG!"=="" (
+    echo Error: could not resolve latest release from GitHub API >&2
+    exit /b 1
+  )
+
+  echo Falling back to !LATEST_TAG!... >&2
+  set "VERSION=!LATEST_TAG!"
+  set "ASSET=lumen-!VERSION:~1!-windows-!ARCH!.exe"
+  set "URL=https://github.com/!REPO!/releases/download/!VERSION!/!ASSET!"
+
+  curl -sfL "!URL!" -o "%BINARY%"
+  if errorlevel 1 (
+    echo Error: fallback download also failed >&2
+    exit /b 1
+  )
+)
+```
 
 ### 3. `cmd/version.go` — Version Subcommand
 
@@ -114,9 +179,12 @@ download:
   name: Download (${{ matrix.os }})
   runs-on: ${{ matrix.os }}
   if: github.actor != 'release-please[bot]'
+  timeout-minutes: 10
   strategy:
     matrix:
       os: [ubuntu-latest, macos-latest, windows-latest]
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   steps:
     - uses: actions/checkout@v4
 
@@ -124,7 +192,8 @@ download:
     - name: Get latest release tag
       id: latest
       run: |
-        TAG=$(curl -sfL https://api.github.com/repos/ory/lumen/releases/latest \
+        TAG=$(curl -sfL -H "Authorization: token $GITHUB_TOKEN" \
+          https://api.github.com/repos/ory/lumen/releases/latest \
           | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
         echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
@@ -135,14 +204,28 @@ download:
       shell: bash
 
     - name: Download via run script (happy path)
-      run: scripts/run.sh version
+      id: happy_unix
+      run: |
+        OUTPUT=$(scripts/run.sh version)
+        echo "version=$OUTPUT" >> "$GITHUB_OUTPUT"
       shell: bash
       if: runner.os != 'Windows'
 
     - name: Download via run.bat (happy path)
-      run: scripts\run.bat version
+      id: happy_win
+      run: |
+        for /f "delims=" %%i in ('scripts\run.bat version') do set "VER=%%i"
+        echo version=%VER%>> %GITHUB_OUTPUT%
       shell: cmd
       if: runner.os == 'Windows'
+
+    - name: Verify version output (happy path)
+      run: |
+        VER="${{ steps.happy_unix.outputs.version }}${{ steps.happy_win.outputs.version }}"
+        echo "Binary reported version: $VER"
+        echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]' \
+          || { echo "ERROR: version output does not match semver pattern"; exit 1; }
+      shell: bash
 
     # Fallback path: set manifest to nonexistent version, verify fallback
     - name: Clear downloaded binary
@@ -154,22 +237,40 @@ download:
       shell: bash
 
     - name: Download via run script (fallback path)
-      run: scripts/run.sh version
+      id: fallback_unix
+      run: |
+        OUTPUT=$(scripts/run.sh version)
+        echo "version=$OUTPUT" >> "$GITHUB_OUTPUT"
       shell: bash
       if: runner.os != 'Windows'
 
     - name: Download via run.bat (fallback path)
-      run: scripts\run.bat version
+      id: fallback_win
+      run: |
+        for /f "delims=" %%i in ('scripts\run.bat version') do set "VER=%%i"
+        echo version=%VER%>> %GITHUB_OUTPUT%
       shell: cmd
       if: runner.os == 'Windows'
+
+    - name: Verify version output (fallback path)
+      run: |
+        VER="${{ steps.fallback_unix.outputs.version }}${{ steps.fallback_win.outputs.version }}"
+        echo "Fallback binary reported version: $VER"
+        echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]' \
+          || { echo "ERROR: version output does not match semver pattern"; exit 1; }
+      shell: bash
 ```
 
 Key properties:
-- Uses `GITHUB_TOKEN` implicitly (GitHub Actions provides it), avoiding
-  unauthenticated rate limits.
+- Passes `GITHUB_TOKEN` as a job-level env var so both the scripts' fallback
+  logic and the "Get latest release tag" step use authenticated API calls
+  (5,000 req/hr limit instead of 60).
 - Tests both the happy path (manifest matches a real release) and the fallback
   path (manifest points to a nonexistent version).
-- Verifies the binary is functional by running `lumen version`.
+- Asserts that `lumen version` outputs a valid semver string (not `dev`).
+- Uses `timeout-minutes: 10` to prevent hung downloads from burning CI minutes.
+- The "Clear downloaded binary" step uses `shell: bash` which works on Windows
+  via Git Bash (pre-installed on GHA Windows runners).
 - Runs on all three platforms with `run.bat` for Windows and `run.sh` for
   Linux/macOS.
 
@@ -188,7 +289,8 @@ Key properties:
 
 | Risk | Mitigation |
 |------|-----------|
-| GitHub API rate limit (60/hr unauthenticated) | Fallback only fires when manifest version is missing; CI uses `GITHUB_TOKEN` for authenticated requests |
+| GitHub API rate limit (60/hr unauthenticated) | Fallback only fires when manifest version is missing; scripts use `GITHUB_TOKEN` when set (CI always has it); end-user one-time fallback is well within 60/hr |
 | Latest release binary is incompatible with shipped plugin code | Unlikely for patch versions; the alternative (hard crash) is worse. Log a warning so users know they got a fallback version |
-| `sed` JSON parsing is fragile | The GitHub API response format for `tag_name` is stable; test covers the parsing |
-| Windows `findstr` parsing edge cases | Test the happy and fallback paths in CI on actual Windows runners |
+| `sed`/`findstr` JSON parsing is fragile | The GitHub API response format for `tag_name` is stable; both scripts validate that extracted tag matches `v[0-9]*` pattern; offline tests cover parsing |
+| Windows `findstr` parsing edge cases | Detailed pseudocode provided; CI tests the actual `run.bat` on Windows runners |
+| API returns non-JSON (HTML error, CDN redirect) | Both scripts validate that parsed tag is non-empty and starts with `v[0-9]` before retrying; fall through to error exit if validation fails |
