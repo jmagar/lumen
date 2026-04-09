@@ -84,6 +84,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	// only contain "loose" files not belonging to any nested repo).
 	for _, repo := range git.DiscoverNestedGitRepos(projectPath) {
 		p := tui.NewProgress(os.Stderr)
+		defer p.RestoreCursor()
 		p.Info(fmt.Sprintf("Indexing nested repo %s", repo))
 		stats, elapsed, skipped, err := runIndexer(cmd, cfg, emb, repo, p, logger)
 		switch {
@@ -102,6 +103,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	p := tui.NewProgress(os.Stderr)
+	defer p.RestoreCursor()
 	dims := cfg.ServerDims(0)
 	logger.Info("indexing started", "project", projectPath, "model", modelName, "dims", dims)
 	p.Info(fmt.Sprintf("Indexing %s (model: %s, dims: %d)", projectPath, modelName, dims))
