@@ -56,6 +56,7 @@ func runIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	emb := newEmbedder(cfg)
+	emb.SetLogger(logger)
 
 	projectPath, err := filepath.Abs(args[0])
 	if err != nil {

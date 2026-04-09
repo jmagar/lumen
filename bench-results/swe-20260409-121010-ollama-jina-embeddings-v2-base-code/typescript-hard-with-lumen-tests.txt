@@ -1,0 +1,12 @@
+Testing types with tsc and vue-tsc is an experimental feature.
+Breaking changes might not follow SemVer, please pin Vitest's version when using it.
+
+ RUN  v4.1.4 /private/var/folders/3g/qls22cy50f14fz2tbcpbwy7h0000gp/T/bench-swe-3491796834/repo
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+Type Errors  no errors
+   Start at  12:19:33
+   Duration  82ms (transform 14ms, setup 0ms, import 20ms, tests 3ms, environment 0ms)
+

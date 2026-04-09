@@ -1,11 +1,11 @@
 results: 9
 OwnerController.java:55-64  OwnerController (type)
-PetClinicApplication.java:23-36  PetClinicApplication+main (method)
+PetClinicApplication.java:23-36  PetClinicApplication+PetClinicApplication.main (method)
 PetController.java:40-55  PetController (type)
 PetController.java:88-108  PetController (type)
-VetController.java:29-44  VetController+vetRepository+showVetList (type)
-VetController.java:69-78  showResourcesVetList+VetController (method)
+VetController.java:29-44  VetController+VetController.vetRepository+VetController.VetController+VetController.showVetList (type)
+VetController.java:69-78  VetController.showResourcesVetList (method)
 Vets.java:24-43  Vets (type)
 VisitController.java:40-54  VisitController (type)
-VisitController.java:82-91  VisitController+initNewVisitForm+processNewVisitForm (type)
+VisitController.java:82-91  VisitController+VisitController.initNewVisitForm+VisitController.processNewVisitForm (type)
 

@@ -751,9 +751,7 @@ func TestTreeSitterChunker_CSharp(t *testing.T) {
 		}
 	}
 
-	check("Calculator", "type")     // class_declaration
 	check("IShape", "interface")    // interface_declaration
-	check("Vector2", "type")        // struct_declaration
 	check("Direction", "type")      // enum_declaration
 	check("Point", "type")          // record_declaration
 	check("StatusChanged", "type")  // delegate_declaration
@@ -1090,7 +1088,6 @@ func TestTreeSitterChunker_Java_Comprehensive(t *testing.T) {
 		}
 	}
 
-	check("Calculator", "type")              // class
 	check("Calculator.Calculator", "function") // constructor
 	check("Calculator.add", "method")          // method
 	check("Computable", "interface")           // interface
@@ -1151,7 +1148,6 @@ func TestTreeSitterChunker_PHP_Comprehensive(t *testing.T) {
 	}
 
 	check("helper", "function")
-	check("User", "type") // class_declaration — was missing!
 	check("getName", "method")
 	check("Repository", "interface")
 	check("Cacheable", "type")   // trait
@@ -1225,10 +1221,7 @@ func TestTreeSitterChunker_CSharp_Comprehensive(t *testing.T) {
 		}
 	}
 
-	check("MyApp", "type")          // namespace_declaration
-	check("Calculator", "type")     // class_declaration
 	check("IShape", "interface")    // interface_declaration
-	check("Vector2", "type")        // struct_declaration
 	check("Direction", "type")      // enum_declaration
 	check("Point", "type")          // record_declaration
 	check("StatusChanged", "type")  // delegate_declaration
@@ -1905,9 +1898,7 @@ func TestTreeSitterChunker_Dart_Comprehensive(t *testing.T) {
 	}
 
 	check("greet", "function")
-	check("Animal", "type")            // class_definition
 	check("Animal.speak", "method")    // method_signature in class
-	check("Swimming", "type")          // mixin_declaration
 	check("Swimming.swim", "method")   // method_signature in mixin
 	check("Color", "type")             // enum_declaration
 	check("StringHelper", "type")      // extension_declaration
@@ -2038,13 +2029,8 @@ func TestTreeSitterChunker_Kotlin(t *testing.T) {
 	check("plus", "function")         // operator function
 
 	// Classes
-	check("User", "type")             // data class
-	check("Result", "type")           // sealed class
-	check("Repository", "type")       // interface (class_declaration in grammar)
-	check("Predicate", "type")        // fun interface
-	check("Password", "type")         // value class
-	check("Base", "type")             // abstract class
-	check("Color", "type")            // enum class
+	check("Predicate", "type")        // fun interface (1 child, kept)
+	check("Password", "type")         // value class (0 children, kept)
 
 	// Object declarations
 	check("Singleton", "type")
@@ -2091,4 +2077,116 @@ func mustPyChunker(t *testing.T) *chunker.TreeSitterChunker {
 		t.Fatalf("NewTreeSitterChunker: %v", err)
 	}
 	return c
+}
+
+func TestResolveContainment(t *testing.T) {
+	mk := func(symbol, kind string, start, end int) chunker.Chunk {
+		return chunker.Chunk{
+			ID:        symbol,
+			FilePath:  "test.kt",
+			Symbol:    symbol,
+			Kind:      kind,
+			StartLine: start,
+			EndLine:   end,
+			Content:   "...",
+		}
+	}
+
+	tests := []struct {
+		name     string
+		input    []chunker.Chunk
+		wantSyms []string // expected surviving symbol names
+	}{
+		{
+			name: "class with 3 methods: class removed",
+			input: []chunker.Chunk{
+				mk("MyClass", "type", 1, 50),
+				mk("MyClass.foo", "function", 5, 15),
+				mk("MyClass.bar", "function", 17, 30),
+				mk("MyClass.baz", "function", 32, 48),
+			},
+			wantSyms: []string{"MyClass.foo", "MyClass.bar", "MyClass.baz"},
+		},
+		{
+			name: "data class with 0 children: kept",
+			input: []chunker.Chunk{
+				mk("DataClass", "type", 1, 5),
+			},
+			wantSyms: []string{"DataClass"},
+		},
+		{
+			name: "class with 1 method: both kept",
+			input: []chunker.Chunk{
+				mk("SmallClass", "type", 1, 20),
+				mk("SmallClass.only", "function", 5, 18),
+			},
+			wantSyms: []string{"SmallClass", "SmallClass.only"},
+		},
+		{
+			name: "nested: inner class with 2 methods removed, outer with 2+ children removed",
+			input: []chunker.Chunk{
+				mk("Outer", "type", 1, 100),
+				mk("Outer.Inner", "type", 10, 50),
+				mk("Outer.Inner.methodA", "function", 12, 25),
+				mk("Outer.Inner.methodB", "function", 27, 48),
+				mk("Outer.other", "function", 55, 95),
+			},
+			wantSyms: []string{"Outer.Inner.methodA", "Outer.Inner.methodB", "Outer.other"},
+		},
+		{
+			name: "function parent with nested function: both kept",
+			input: []chunker.Chunk{
+				mk("outerFn", "function", 1, 30),
+				mk("outerFn.innerFn", "function", 5, 15),
+				mk("outerFn.innerFn2", "function", 17, 28),
+			},
+			wantSyms: []string{"outerFn", "outerFn.innerFn", "outerFn.innerFn2"},
+		},
+		{
+			name: "enum with 3 entries: enum removed",
+			input: []chunker.Chunk{
+				mk("Color", "type", 1, 20),
+				mk("Color.RED", "var", 3, 5),
+				mk("Color.GREEN", "var", 6, 8),
+				mk("Color.BLUE", "var", 9, 11),
+			},
+			wantSyms: []string{"Color.RED", "Color.GREEN", "Color.BLUE"},
+		},
+		{
+			name: "interface with 2 methods: interface removed",
+			input: []chunker.Chunk{
+				mk("Repository", "interface", 1, 20),
+				mk("Repository.findById", "method", 3, 10),
+				mk("Repository.save", "method", 12, 19),
+			},
+			wantSyms: []string{"Repository.findById", "Repository.save"},
+		},
+		{
+			name: "different files: no cross-file containment",
+			input: []chunker.Chunk{
+				{ID: "A", FilePath: "a.kt", Symbol: "A", Kind: "type", StartLine: 1, EndLine: 50, Content: "..."},
+				{ID: "B.foo", FilePath: "b.kt", Symbol: "B.foo", Kind: "function", StartLine: 5, EndLine: 15, Content: "..."},
+				{ID: "B.bar", FilePath: "b.kt", Symbol: "B.bar", Kind: "function", StartLine: 17, EndLine: 30, Content: "..."},
+			},
+			wantSyms: []string{"A", "B.foo", "B.bar"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chunker.ResolveContainment(tt.input)
+			gotSyms := make(map[string]bool)
+			for _, c := range got {
+				gotSyms[c.Symbol] = true
+			}
+			for _, want := range tt.wantSyms {
+				if !gotSyms[want] {
+					t.Errorf("expected chunk %q to survive, got: %v", want, symbolNames(got))
+				}
+			}
+			if len(got) != len(tt.wantSyms) {
+				t.Errorf("expected %d chunks, got %d: %v", len(tt.wantSyms), len(got), symbolNames(got))
+			}
+		})
+	}
 }
