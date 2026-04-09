@@ -121,7 +121,6 @@ func (c *TreeSitterChunker) Chunk(filePath string, content []byte) ([]Chunk, err
 		}
 	}
 
-	chunks = ResolveContainment(chunks)
 	chunks = deduplicateByExactRange(chunks)
 	return chunks, nil
 }
@@ -179,47 +178,6 @@ func findLeadingComments(node *sitter.Node) *sitter.Node {
 // deduplicateByExactRange removes chunks with identical (StartLine, EndLine) ranges.
 // When two chunks share the same range, the later one wins because
 // queries are ordered from general to specific.
-// ResolveContainment removes parent type/interface chunks whose line range
-// fully contains 2 or more distinct child chunks. This prevents class-level
-// mega-chunks from being indexed alongside their individually-captured methods.
-// Distinct children are counted by unique (StartLine, EndLine) ranges to avoid
-// double-counting when multiple queries capture the same declaration.
-func ResolveContainment(chunks []Chunk) []Chunk {
-	if len(chunks) <= 1 {
-		return chunks
-	}
-
-	type lineRange struct{ start, end int }
-	remove := make(map[int]bool)
-	for i, p := range chunks {
-		if p.Kind != "type" && p.Kind != "interface" {
-			continue
-		}
-		children := make(map[lineRange]bool)
-		for j, c := range chunks {
-			if j == i {
-				continue
-			}
-			if c.FilePath == p.FilePath &&
-				c.StartLine >= p.StartLine &&
-				c.EndLine <= p.EndLine {
-				children[lineRange{c.StartLine, c.EndLine}] = true
-			}
-		}
-		if len(children) >= 2 {
-			remove[i] = true
-		}
-	}
-
-	result := make([]Chunk, 0, len(chunks)-len(remove))
-	for i, c := range chunks {
-		if !remove[i] {
-			result = append(result, c)
-		}
-	}
-	return result
-}
-
 func deduplicateByExactRange(chunks []Chunk) []Chunk {
 	if len(chunks) <= 1 {
 		return chunks
