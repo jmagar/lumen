@@ -1,18 +1,18 @@
 {
   "id": "kotlin-hard",
   "language": "kotlin",
-  "repo": "https://github.com/ktorio/ktor",
-  "base_commit": "49fceb695198557b534f613aaca732d48aa87e0f",
-  "fix_commit": "8f8ec7a62fe9a32e823905eea6b15b61b5831cc2",
-  "issue_url": "https://youtrack.jetbrains.com/issue/KTOR-1662",
-  "issue_title": "CORS doesn't reject bad headers",
-  "issue_body": "After introducing the accepted headers predicate feature, the CORS plugin started accepting non-simple headers by default when it should be rejecting them.\n\nSteps to reproduce:\n1. Install the CORS plugin with specific allowed headers (e.g., Range)\n2. Send an OPTIONS preflight request with Access-Control-Request-Headers containing multiple headers, where at least one header is NOT in the allowed set (e.g., 'Accept,Content-Type' when only simple headers plus Range are allowed)\n3. The server responds with 200 OK instead of 403 Forbidden\n\nExpected behavior: The preflight request should be rejected (403 Forbidden) because Content-Type is not a simple header and was not explicitly allowed in the CORS configuration.\n\nActual behavior: The preflight request succeeds (200 OK) as long as the first header in the list matches. It appears that only the first header in the request is being validated, and the remaining headers are skipped.\n\nThis is a regression introduced when the header predicate feature was added. The validation of multiple request headers appears to short-circuit after checking only the first header.",
+  "repo": "https://github.com/Kotlin/kotlinx.serialization",
+  "base_commit": "27e352d5c208229d66e83dd717891c87788d16b4",
+  "fix_commit": "9adedb46bf552ba371a2236687cf3a3a2ea6e035",
+  "issue_url": "https://github.com/Kotlin/kotlinx.serialization/issues/2909",
+  "issue_title": "MissingFieldException when trying to deserialize enum field in sealed hierarchy",
+  "issue_body": "Exception occurs when trying to deserialize an object as a sealed root, if it contains a field with an unknown enum value.\n\n```\nException in thread \"main\" kotlinx.serialization.MissingFieldException: Field 'status' is required for type with serial name 'org.example.Feature', but it was missing at path: $\n```\n\nReproduction:\n\n```kotlin\n@Serializable\ninternal sealed class TestSealed {\n    @Serializable\n    @SerialName(\"foo\")\n    data class FirstSealed(@SerialName(\"feature\") val feature: Feature) : TestSealed()\n}\n\n@Serializable\ninternal data class Feature(\n    @SerialName(\"status\") val status: FeatureStatus?,\n)\n\n@Serializable\ninternal enum class FeatureStatus {\n    @SerialName(\"first\") First,\n    @SerialName(\"second\") Second,\n}\n\nval json = \"\"\"{\\n    \"feature\": {\\n      \"status\": \"unknown\"\\n    },\\n    \"type\": \"foo\"\\n}\"\"\"\n\nfun main() {\n    val parser = Json {\\n        coerceInputValues = true\\n        explicitNulls = false\\n        ignoreUnknownKeys = true\\n    }\n    println(parser.decodeFromString<TestSealed>(json))\n}\n```\n\nIf decoding as the concrete implementation directly, it works: `parser.decodeFromString<TestSealed.FirstSealed>(json)`\n\nAlso noticed that moving the \"type\" key before \"feature\" in the JSON fixes the problem. Does the order of keys matter?\n\nExpected behavior: Decode succeeds and prints `FirstSealed(feature=Feature(status=null))`\n\nEnvironment: Kotlin 2.1.0, Library version 1.8.0, JVM platform",
   "gold_patch_file": "patches/kotlin-hard.patch",
   "expected_files": [
-    "ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt",
-    "ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt"
+    "formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt",
+    "formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt"
   ],
   "setup_commands": [],
-  "test_command": "./gradlew :ktor-server:ktor-server-tests:jvmTest --tests 'io.ktor.tests.server.features.CORSTest.testPreFlightMultipleHeadersRegression' -x dokkaHtmlMultiModule",
+  "test_command": "./gradlew :formats:json-tests:jvmTest --tests 'kotlinx.serialization.json.JsonCoerceInputValuesTest' -x dokkaHtml",
   "timeout_s": 900
 }

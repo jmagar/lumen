@@ -1,119 +1,175 @@
-diff --git a/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt b/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
-index 54a772ebb..18e8553ef 100644
---- a/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
-+++ b/ktor-server/ktor-server-core/jvm/src/io/ktor/features/CORS.kt
-@@ -196,16 +196,13 @@ public class CORS(configuration: Configuration) {
-         return allowsAnyHost || normalizeOrigin(origin) in hostsNormalized
-     }
- 
--    private fun ApplicationCall.corsCheckRequestHeaders(requestHeaders: List<String>): Boolean {
--
--        requestHeaders.all { header ->
--            return header in allHeadersSet || headerMatchesAPredicate(header)
-+    private fun corsCheckRequestHeaders(requestHeaders: List<String>): Boolean {
-+        return requestHeaders.all { header ->
-+            header in allHeadersSet || headerMatchesAPredicate(header)
+diff --git a/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt b/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
+index 5653d357..1652df17 100644
+--- a/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
++++ b/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
+@@ -155,8 +155,8 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
+     fun testNullableEnumWithoutDefault() {
+         val j = Json(json) { explicitNulls = false }
+         parametrizedTest { mode ->
+-            assertEquals(NullableEnumHolder(null), j.decodeFromString("{}"))
+-            assertEquals(NullableEnumHolder(null), j.decodeFromString("""{"enum":"incorrect"}"""))
++            assertEquals(NullableEnumHolder(null), j.decodeFromString("{}", mode))
++            assertEquals(NullableEnumHolder(null), j.decodeFromString("""{"enum":"incorrect"}""", mode))
          }
--
--        return requestHeaders.none { it !in allHeadersSet }
      }
  
--    private fun ApplicationCall.headerMatchesAPredicate(header: String): Boolean {
-+    private fun headerMatchesAPredicate(header: String): Boolean {
-         return headerPredicates.any { it(header) }
-     }
- 
-diff --git a/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt b/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
-index c49f14528..12ca79e45 100644
---- a/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
-+++ b/ktor-server/ktor-server-tests/jvm/test/io/ktor/tests/server/features/CORSTest.kt
-@@ -198,7 +198,10 @@ class CORSTest {
-             }.let { call ->
-                 assertEquals(HttpStatusCode.OK, call.response.status())
-                 assertEquals("http://my-host", call.response.headers[HttpHeaders.AccessControlAllowOrigin])
--                assertEquals(setOf(HttpHeaders.ETag, HttpHeaders.Vary), call.response.headers[HttpHeaders.AccessControlExposeHeaders]?.split(", ")?.toSet())
-+                assertEquals(
-+                    setOf(HttpHeaders.ETag, HttpHeaders.Vary),
-+                    call.response.headers[HttpHeaders.AccessControlExposeHeaders]?.split(", ")?.toSet()
-+                )
-                 assertEquals("OK", call.response.content)
-             }
+@@ -164,8 +164,8 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
+     fun testNullableEnumWithoutDefaultDoesNotCoerceExplicitly() {
+         val j = Json(json) { explicitNulls = true }
+         parametrizedTest { mode ->
+-            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("{}") }
+-            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("""{"enum":"incorrect"}""") }
++            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("{}", mode) }
++            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("""{"enum":"incorrect"}""", mode) }
          }
-@@ -503,6 +506,32 @@ class CORSTest {
+     }
+ 
+@@ -173,9 +173,9 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
+     fun testNullableEnumWithDefault() {
+         val j = Json(json) { explicitNulls = false }
+         parametrizedTest { mode ->
+-            assertEquals(NullableEnumWithDefault(), j.decodeFromString("{}"))
+-            assertEquals(NullableEnumWithDefault(), j.decodeFromString("""{"e":"incorrect"}"""))
+-            assertEquals(NullableEnumWithDefault(null), j.decodeFromString("""{"e":null}"""))
++            assertEquals(NullableEnumWithDefault(), j.decodeFromString("{}", mode))
++            assertEquals(NullableEnumWithDefault(), j.decodeFromString("""{"e":"incorrect"}""", mode))
++            assertEquals(NullableEnumWithDefault(null), j.decodeFromString("""{"e":null}""", mode))
+         }
+     }
+ }
+diff --git a/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt b/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
+index 00053297..e1c50d0c 100644
+--- a/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
++++ b/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
+@@ -13,9 +13,9 @@ class JsonCoerceInputValuesDynamicTest {
+         isLenient = true
+     }
+ 
+-    private fun <T> doTest(inputs: List<dynamic>, expected: T, serializer: KSerializer<T>) {
++    private fun <T> doTest(inputs: List<dynamic>, expected: T, serializer: KSerializer<T>, jsonImpl: Json = json) {
+         for (input in inputs) {
+-            assertEquals(expected, json.decodeFromDynamic(serializer, input), "Failed on input: $input")
++            assertEquals(expected, jsonImpl.decodeFromDynamic(serializer, input), "Failed on input: $input")
+         }
+     }
+ 
+@@ -49,6 +49,20 @@ class JsonCoerceInputValuesDynamicTest {
          }
      }
  
 +    @Test
-+    fun testPreFlightMultipleHeadersRegression(): Unit = withTestApplication {
-+        application.install(CORS) {
-+            anyHost()
-+            header(HttpHeaders.Range)
-+        }
-+
-+        application.routing {
-+            get("/") {
-+                call.respond("OK")
-+            }
-+        }
-+
-+        // simple `Content-Type` request header is not allowed by default
-+        handleRequest(HttpMethod.Options, "/") {
-+            addHeader(HttpHeaders.Origin, "http://my-host")
-+            addHeader(HttpHeaders.AccessControlRequestMethod, "GET")
-+            addHeader(
-+                HttpHeaders.AccessControlRequestHeaders,
-+                "${HttpHeaders.Accept},${HttpHeaders.ContentType}"
-+            )
-+        }.let { call ->
-+            assertEquals(HttpStatusCode.Forbidden, call.response.status())
-+        }
++    fun testUseNullWithImplicitNulls() {
++        val withImplicitNulls = Json(json) { explicitNulls = false }
++        doTest(
++            listOf(
++                js("""{}"""),
++                js("""{"enum":"incorrect"}"""),
++            ),
++            JsonCoerceInputValuesTest.NullableEnumHolder(null),
++            JsonCoerceInputValuesTest.NullableEnumHolder.serializer(),
++            withImplicitNulls
++        )
 +    }
 +
      @Test
-     fun testPreFlight() {
-         withTestApplication {
-@@ -726,7 +755,10 @@ class CORSTest {
-                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom-header1, custom-header2")
-             }.let { call ->
-                 assertEquals(HttpStatusCode.OK, call.response.status())
--                assertEquals("custom-header1, custom-header2", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
-+                assertEquals(
-+                    "custom-header1, custom-header2",
-+                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
-+                )
-             }
-         }
-     }
-@@ -752,7 +784,10 @@ class CORSTest {
-                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom-header1, custom-header2")
-             }.let { call ->
-                 assertEquals(HttpStatusCode.OK, call.response.status())
--                assertEquals("Range, custom-header1, custom-header2", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
-+                assertEquals(
-+                    "Range, custom-header1, custom-header2",
-+                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
-+                )
-             }
-         }
-     }
-@@ -827,7 +862,10 @@ class CORSTest {
-                 addHeader(HttpHeaders.AccessControlRequestHeaders, "custom1-header, custom2-header")
-             }.let { call ->
-                 assertEquals(HttpStatusCode.OK, call.response.status())
--                assertEquals("custom1-header, custom2-header", call.response.headers.get(HttpHeaders.AccessControlAllowHeaders))
-+                assertEquals(
-+                    "custom1-header, custom2-header",
-+                    call.response.headers.get(HttpHeaders.AccessControlAllowHeaders)
-+                )
-             }
-         }
-     }
-@@ -837,7 +875,7 @@ class CORSTest {
-         withTestApplication {
-             application.install(CORS) {
-                 anyHost()
--                allowHeaders { name -> name.startsWith("custom-matcher")}
-+                allowHeaders { name -> name.startsWith("custom-matcher") }
-             }
+     fun testUseDefaultInMultipleCases() {
+         val testData = mapOf<dynamic, JsonCoerceInputValuesTest.MultipleValues>(
+diff --git a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
+index 2121b27a..ee3eb03b 100644
+--- a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
++++ b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
+@@ -197,31 +197,35 @@ private open class JsonTreeDecoder(
+ ) : AbstractJsonTreeDecoder(json, value, polymorphicDiscriminator) {
+     private var position = 0
+     private var forceNull: Boolean = false
+-    /*
+-     * Checks whether JSON has `null` value for non-null property or unknown enum value for enum property
+-     */
+-    private fun coerceInputValue(descriptor: SerialDescriptor, index: Int, tag: String): Boolean =
+-        json.tryCoerceValue(
+-            descriptor, index,
+-            { currentElement(tag) is JsonNull },
+-            { (currentElement(tag) as? JsonPrimitive)?.contentOrNull }
+-        )
  
-             application.routing {
+     override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
+         while (position < descriptor.elementsCount) {
+             val name = descriptor.getTag(position++)
+             val index = position - 1
+             forceNull = false
+-            if ((name in value || absenceIsNull(descriptor, index))
+-                && (!configuration.coerceInputValues || !coerceInputValue(descriptor, index, name))
+-            ) {
++
++            if (name in value || setForceNull(descriptor, index)) {
++                // if forceNull is true, then decodeNotNullMark returns false and `null` is automatically inserted
++                // by Decoder.decodeIfNullable
++                if (!configuration.coerceInputValues) return index
++
++                if (json.tryCoerceValue(
++                        descriptor, index,
++                        { currentElementOrNull(name) is JsonNull },
++                        { (currentElementOrNull(name) as? JsonPrimitive)?.contentOrNull },
++                        { // an unknown enum value should be coerced to null via decodeNotNullMark if explicitNulls=false :
++                            if (setForceNull(descriptor, index)) return index
++                        }
++                    )
++                ) continue // do not read coerced value
++
+                 return index
+             }
+         }
+         return CompositeDecoder.DECODE_DONE
+     }
+ 
+-    private fun absenceIsNull(descriptor: SerialDescriptor, index: Int): Boolean {
++    private fun setForceNull(descriptor: SerialDescriptor, index: Int): Boolean {
+         forceNull = !json.configuration.explicitNulls
+                 && !descriptor.isElementOptional(index) && descriptor.getElementDescriptor(index).isNullable
+         return forceNull
+@@ -257,6 +261,8 @@ private open class JsonTreeDecoder(
+ 
+     override fun currentElement(tag: String): JsonElement = value.getValue(tag)
+ 
++    fun currentElementOrNull(tag: String): JsonElement? = value[tag]
++
+     override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
+         // polyDiscriminator needs to be preserved so the check for unknown keys
+         // in endStructure can filter polyDiscriminator out.
+diff --git a/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt b/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
+index fc9a5236..f5d6bd61 100644
+--- a/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
++++ b/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
+@@ -85,7 +85,22 @@ private open class DynamicInput(
+             val name = descriptor.getTag(currentPosition++)
+             val index = currentPosition - 1
+             forceNull = false
+-            if ((hasName(name) || absenceIsNull(descriptor, index)) && (!json.configuration.coerceInputValues || !coerceInputValue(descriptor, index, name))) {
++
++            if (hasName(name) || setForceNull(descriptor, index)) {
++                // if forceNull is true, then decodeNotNullMark returns false and `null` is automatically inserted
++                // by Decoder.decodeIfNullable
++                if (!json.configuration.coerceInputValues) return index
++
++                if (json.tryCoerceValue(
++                        descriptor, index,
++                        { getByTag(name) == null },
++                        { getByTag(name) as? String },
++                        { // an unknown enum value should be coerced to null via decodeNotNullMark if explicitNulls=false :
++                            if (setForceNull(descriptor, index)) return index
++                        }
++                    )
++                ) continue // do not read coerced value
++
+                 return index
+             }
+         }
+@@ -94,7 +109,7 @@ private open class DynamicInput(
+ 
+     private fun hasName(name: String) = value[name] !== undefined
+ 
+-    private fun absenceIsNull(descriptor: SerialDescriptor, index: Int): Boolean {
++    private fun setForceNull(descriptor: SerialDescriptor, index: Int): Boolean {
+         forceNull = !json.configuration.explicitNulls
+                 && !descriptor.isElementOptional(index) && descriptor.getElementDescriptor(index).isNullable
+         return forceNull
