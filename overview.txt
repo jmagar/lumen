@@ -1,0 +1,24 @@
+=== Run: 2026-04-08 22:50:08 UTC | embed=ordis/jina-embeddings-v2-base-code | claude=haiku ===
+
+Task                            Lang      Scenario    Run   Rating    Cost      Time     Total Tokens   Tool Calls   Valid
+------------------------------------------------------------------------------------------------------------------------
+kotlin-hard                     kotlin    baseline    1     —         $0.1821   95.3s    858176         19           YES  
+------------------------------------------------------------------------------------------------------------------------
+Perfect: 0  Good: 0  Poor: 0  Invalid: 0  Total cost: $0.1821
+
+=== Run: 2026-04-09 06:22:21 UTC | embed=ordis/jina-embeddings-v2-base-code | claude=haiku ===
+
+Task                            Lang      Scenario    Run   Rating    Cost      Time     Total Tokens   Tool Calls   Valid
+------------------------------------------------------------------------------------------------------------------------
+kotlin-hard                     kotlin    baseline    1     —         $0.7657   592.1s   4898375        76           YES  
+kotlin-hard                     kotlin    with-lumen  1     —         $0.6659   348.2s   4282714        51           YES  
+------------------------------------------------------------------------------------------------------------------------
+Perfect: 0  Good: 0  Poor: 0  Invalid: 0  Total cost: $1.4316
+
+--- Comparison: worst baseline vs best with-lumen ---
+Cost:       0.7657 (baseline) vs 0.6659 (lumen) → 13% cheaper
+Time:       592.1 (baseline) vs 348.2 (lumen) → 41% faster
+Tokens:     4.898e+06 (baseline) vs 4.283e+06 (lumen) → 13% fewer tokens
+Tool calls: 76 (baseline) vs 51 (lumen) → 33% fewer tool calls
+Rating:     None (baseline) vs None (lumen)
+

@@ -1,0 +1,97 @@
+diff --git a/formats/json-tests/commonTest/src/kotlinx/serialization/features/SealedPolymorphismTest.kt b/formats/json-tests/commonTest/src/kotlinx/serialization/features/SealedPolymorphismTest.kt
+index 4cc289a..14ede82 100644
+--- a/formats/json-tests/commonTest/src/kotlinx/serialization/features/SealedPolymorphismTest.kt
++++ b/formats/json-tests/commonTest/src/kotlinx/serialization/features/SealedPolymorphismTest.kt
+@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
+ import kotlinx.serialization.modules.*
+ import kotlinx.serialization.test.assertStringFormAndRestored
+ import kotlin.test.Test
++import kotlin.test.assertEquals
++import kotlin.test.assertTrue
+ 
+ class SealedPolymorphismTest {
+ 
+@@ -60,4 +62,55 @@ class SealedPolymorphismTest {
+             json
+         )
+     }
++
++    @Test
++    fun testSealedClassWithUnknownEnumValueInField() {
++        val jsonWithUnknownEnum = """{
++            "feature": {
++              "status": "unknown"
++            },
++            "type": "foo"
++        }"""
++
++        val parser = Json {
++            coerceInputValues = true
++            explicitNulls = false
++            ignoreUnknownKeys = true
++        }
++
++        // Should succeed and deserialize with status = null due to coercion
++        val result = parser.decodeFromString<TestSealedWithEnum>(jsonWithUnknownEnum)
++        assertTrue(result is TestSealedWithEnum.FirstSealed)
++        assertEquals(null, result.feature.status)
++
++        // Also test when type field comes first
++        val jsonWithTypeFirst = """{
++            "type": "foo",
++            "feature": {
++              "status": "unknown"
++            }
++        }"""
++
++        val result2 = parser.decodeFromString<TestSealedWithEnum>(jsonWithTypeFirst)
++        assertTrue(result2 is TestSealedWithEnum.FirstSealed)
++        assertEquals(null, result2.feature.status)
++    }
++}
++
++@Serializable
++sealed class TestSealedWithEnum {
++    @Serializable
++    @SerialName("foo")
++    data class FirstSealed(@SerialName("feature") val feature: FeatureWithStatus) : TestSealedWithEnum()
++}
++
++@Serializable
++data class FeatureWithStatus(
++    @SerialName("status") val status: StatusEnum?,
++)
++
++@Serializable
++enum class StatusEnum {
++    @SerialName("first") First,
++    @SerialName("second") Second,
+ }
+diff --git a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
+index 2121b27..34a3e24 100644
+--- a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
++++ b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
+@@ -212,9 +212,20 @@ private open class JsonTreeDecoder(
+             val name = descriptor.getTag(position++)
+             val index = position - 1
+             forceNull = false
+-            if ((name in value || absenceIsNull(descriptor, index))
+-                && (!configuration.coerceInputValues || !coerceInputValue(descriptor, index, name))
+-            ) {
++            if (name in value || absenceIsNull(descriptor, index)) {
++                if (configuration.coerceInputValues && coerceInputValue(descriptor, index, name)) {
++                    // Coercion succeeded. For enums with unknown values:
++                    // - If the field is nullable and not explicitly optional, coerce to null
++                    // - Otherwise, skip the field and use default/absent handling
++                    val elementDescriptor = descriptor.getElementDescriptor(index)
++                    if (elementDescriptor.kind == SerialKind.ENUM && elementDescriptor.isNullable && !descriptor.isElementOptional(index)) {
++                        // Mark as null but still return the index so the deserializer handles it
++                        forceNull = true
++                        return index
++                    }
++                    // Skip the field (use default or absence handling)
++                    continue
++                }
+                 return index
+             }
+         }

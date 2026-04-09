@@ -1,0 +1,63 @@
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors
+> Task :buildSrc:generateExternalPluginSpecBuilders UP-TO-DATE
+> Task :buildSrc:extractPrecompiledScriptPluginPlugins UP-TO-DATE
+> Task :buildSrc:compilePluginsBlocks UP-TO-DATE
+> Task :buildSrc:generatePrecompiledScriptPluginAccessors UP-TO-DATE
+> Task :buildSrc:generateScriptPluginAdapters UP-TO-DATE
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources UP-TO-DATE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+
+> Configure project :
+warning: Dokka Gradle plugin V1 is deprecated
+    
+    Dokka Gradle plugin V1 is deprecated, and will be removed in Dokka version 2.1.0
+    Please migrate to Dokka Gradle plugin V2. This will require updating your project.
+    To learn about migrating read the migration guide https://kotl.in/dokka-gradle-migration
+    
+    To start migrating to Dokka Gradle plugin V2 add
+        org.jetbrains.dokka.experimental.gradle.pluginMode=V2EnabledWithHelpers
+    into your project's `gradle.properties` file.
+    
+    We would appreciate your feedback!
+     - Please report any feedback or problems https://kotl.in/dokka-issues
+     - Chat with the community visit #dokka in https://kotlinlang.slack.com/ (To sign up visit https://kotl.in/slack)
+    
+warning: Dokka K2 Analysis is enabled
+    Dokka K2 Analysis is Experimental and is still under active development.
+    It can cause build failures or generate incorrect documentation. 
+    
+    We would appreciate your feedback!
+     - Please report any feedback or problems https://kotl.in/dokka-issues
+     - Chat with the community visit #dokka in https://kotlinlang.slack.com/ (To sign up visit https://kotl.in/slack)
+    
+    You can suppress this message by adding
+        org.jetbrains.dokka.experimental.tryK2.nowarn=true
+    to your project's `gradle.properties` file.
+Project is using Kotlin Gradle plugin version: 2.1.0
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Cannot locate tasks that match ':formats:json-tests:jvmTest' as project 'formats' not found in root project 'kotlinx-serialization'.
+
+* Try:
+> Run gradlew projects to get a list of available projects.
+> For more on name expansion, please refer to https://docs.gradle.org/8.7/userguide/command_line_interface.html#sec:name_abbreviation in the Gradle documentation.
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.7/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1s
+10 actionable tasks: 1 executed, 9 up-to-date
