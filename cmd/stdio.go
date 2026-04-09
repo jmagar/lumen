@@ -179,7 +179,6 @@ type indexerCache struct {
 	findDonorFunc   func(string, string) string                                                                                              // nil uses config.FindDonorIndex
 	seedFunc        func(string, string) (bool, error)                                                                                       // nil uses index.SeedFromDonor
 	ensureFreshFunc func(ctx context.Context, idx *index.Indexer, projectDir string, progress index.ProgressFunc) (bool, index.Stats, error) // nil uses idx.EnsureFresh
-	log             *slog.Logger
 	wg              sync.WaitGroup     // tracks background reindex goroutines
 	closeCtx        context.Context    // cancelled by Close() to signal background goroutines
 	closeFn         context.CancelFunc // cancels closeCtx
@@ -216,10 +215,7 @@ func (ic *indexerCache) getReindexTimeout() time.Duration {
 // logger returns ic.log, falling back to a discarding logger when the field
 // is nil (e.g. in unit tests that construct indexerCache directly).
 func (ic *indexerCache) logger() *slog.Logger {
-	if ic.log == nil {
-		return slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
-	return ic.log
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 // Close cancels all background reindex goroutines, waits for them to drain
@@ -1347,22 +1343,10 @@ func runStdio(_ *cobra.Command, _ []string) error {
 
 	emb := newEmbedder(cfg)
 
-	logger, logFile := newDebugLogger()
-	if logFile != nil {
-		defer func() { _ = logFile.Close() }()
-	}
-
-	logger.Info("lumen config",
-		"model", emb.ModelName(),
-		"backend", cfg.Servers()[0].Backend,
-		"freshness_ttl", cfg.FreshnessTTL().String(),
-	)
-
 	closeCtx, closeFn := context.WithCancel(context.Background())
 	indexers := &indexerCache{
 		embedder: emb,
 		cfg:      cfg,
-		log:      logger,
 		closeCtx: closeCtx,
 		closeFn:  closeFn,
 	}
