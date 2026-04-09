@@ -1,12 +1,12 @@
 results: 10
-Owner.java:37-67  Owner+Owner.address+Owner.city+Owner.telephone+Owner.pets (type)
-OwnerController.java:55-67  OwnerController+OwnerController.findOwner (type)
+Owner.java:37-96  Owner+Owner.address+Owner.city+Owner.telephone+Owner.pets (var)
+OwnerController.java:59-62  OwnerController.setAllowedFields (method)
 OwnerRepository.java:36-37  OwnerRepository (interface)
-Pet.java:36-72  Pet+Pet.birthDate+Pet.type+Pet.visits (type)
-PetController.java:56-65  PetController+PetController.populatePetTypes (type)
+Pet.java:36-85  Pet+Pet.birthDate+Pet.type+Pet.visits (type)
 PetType.java:23-30  PetType (type)
 Specialty.java:23-32  Specialty (type)
 Vet.java:35-50  Vet+Vet.specialties (type)
-Visit.java:28-44  Visit (type)
-VisitController.java:55-62  VisitController+VisitController.loadPetWithVisit (type)
+VetRepository.java:48-58  VetRepository (interface)
+Visit.java:28-44  Visit+Visit.date+Visit.description (type)
+Visit.java:54-68  Visit (type)
 

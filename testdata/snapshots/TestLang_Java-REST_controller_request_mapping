@@ -1,12 +1,11 @@
-results: 10
-OwnerController.java:72-77  OwnerController (type)
-OwnerController.java:89-102  OwnerController.initFindForm+OwnerController.processFindForm (type)
-OwnerController.java:136-141  OwnerController (type)
-OwnerController.java:161-166  OwnerController+OwnerController.showOwner (type)
-PetController.java:40-55  PetController (type)
-PetController.java:98-108  PetController.initCreationForm (type)
-VetController.java:34-44  VetController+VetController.showVetList (type)
-VetController.java:69-78  VetController.showResourcesVetList (method)
-VisitController.java:55-62  VisitController+VisitController.loadPetWithVisit (type)
-VisitController.java:82-91  VisitController+VisitController.initNewVisitForm+VisitController.processNewVisitForm (type)
+results: 9
+CrashController.java:21-35  CrashController+CrashController.triggerException (method)
+OwnerController.java:51-57  OwnerController.VIEWS_OWNER_CREATE_OR_UPDATE_FORM+OwnerController.owners+OwnerController.OwnerController (function)
+OwnerController.java:127-128  OwnerController.addPaginationModel (method)
+OwnerController.java:161-166  OwnerController.showOwner (method)
+PetController.java:40-55  PetController+PetController.VIEWS_PETS_CREATE_OR_UPDATE_FORM+PetController.owners+PetController.types (var)
+VetController.java:29-44  VetController+VetController.vetRepository+VetController.VetController+VetController.showVetList (method)
+VetController.java:52-52  VetController.showVetList (method)
+VetController.java:63-78  VetController+VetController.showResourcesVetList (type)
+VisitController.java:33-49  VisitController+VisitController.owners (type)
 

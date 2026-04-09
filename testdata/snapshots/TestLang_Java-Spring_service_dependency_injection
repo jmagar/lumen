@@ -1,11 +1,12 @@
-results: 9
-OwnerController.java:55-64  OwnerController (type)
-PetClinicApplication.java:23-36  PetClinicApplication+PetClinicApplication.main (method)
-PetController.java:40-55  PetController (type)
-PetController.java:88-108  PetController (type)
-VetController.java:29-44  VetController+VetController.vetRepository+VetController.VetController+VetController.showVetList (type)
-VetController.java:69-78  VetController.showResourcesVetList (method)
-Vets.java:24-43  Vets (type)
-VisitController.java:40-54  VisitController (type)
-VisitController.java:82-91  VisitController+VisitController.initNewVisitForm+VisitController.processNewVisitForm (type)
+results: 10
+CacheConfiguration.java:26-39  CacheConfiguration+CacheConfiguration.petclinicCacheConfigurationCustomizer (type)
+CacheConfiguration.java:47-53  CacheConfiguration (type)
+OwnerController.java:41-57  OwnerController+OwnerController.VIEWS_OWNER_CREATE_OR_UPDATE_FORM+OwnerController.owners+OwnerController.OwnerController (function)
+PetClinicApplication.java:23-36  PetClinicApplication (type)
+PetController.java:40-59  PetController+PetController.VIEWS_PETS_CREATE_OR_UPDATE_FORM+PetController.owners+PetController.types+PetController.PetController (function)
+VetController.java:29-43  VetController+VetController.vetRepository+VetController.VetController (var)
+VetController.java:52-52  VetController.showVetList (method)
+VetRepository.java:48-58  VetRepository (interface)
+Visit.java:54-68  Visit (type)
+VisitController.java:33-49  VisitController+VisitController.owners+VisitController.VisitController (var)
 

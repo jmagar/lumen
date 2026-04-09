@@ -1,12 +1,11 @@
-results: 10
-network.ts:355-370  FileAccessImpl (type)
-resources.ts:79-93  dirname+IExtUri+joinPath (interface)
-resources.ts:101-114  IExtUri (interface)
-resources.ts:132-137  IExtUri+addTrailingPathSeparator (interface)
-uri.ts:32-36  _validateUri (function)
-uri.ts:64-80  _referenceResolution (function)
-uri.ts:185-191  URI (type)
-uri.ts:265-275  URI+URI.parse (type)
-uri.ts:303-332  URI+URI.file (method)
-uri.ts:353-374  URI.joinPath (method)
+results: 9
+path.ts:142-154  normalizeString (function)
+path.ts:181-205  ParsedPath+IPath+normalize+join+resolve+dirname+toNamespacedPath (interface)
+path.ts:421-429  win32 (const)
+path.ts:530-539  win32 (const)
+path.ts:1129-1133  win32 (const)
+path.ts:1200-1215  posix+normalize (const)
+path.ts:1552-1586  posix+normalize+isAbsolute+join+resolve+relative+dirname+basename+extname+format+parse+toNamespacedPath+sep+delimiter (const)
+resources.ts:86-100  IExtUri (interface)
+uri.ts:364-371  URI.joinPath (method)
 

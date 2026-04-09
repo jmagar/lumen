@@ -1,9 +1,12 @@
-results: 7
-Owner.java:135-145  Owner.getPet (method)
-Owner.java:166-176  Owner (type)
+results: 10
+OwnerController.java:59-62  OwnerController.setAllowedFields (method)
 OwnerController.java:77-83  OwnerController.processCreationForm (type)
-OwnerController.java:141-154  OwnerController.processUpdateOwnerForm (type)
-PetController.java:50-54  PetController.VIEWS_PETS_CREATE_OR_UPDATE_FORM+PetController.owners+PetController.types (var)
-PetController.java:93-145  PetController.initPetBinder+PetController.initCreationForm+PetController.processCreationForm+PetController.initUpdateForm+PetController.processUpdateForm (method)
-VisitController.java:92-97  VisitController.processNewVisitForm (method)
+OwnerController.java:141-154  OwnerController.processUpdateOwnerForm (method)
+PetController.java:88-96  PetController.initOwnerBinder+PetController.initPetBinder (method)
+PetController.java:105-120  PetController.processCreationForm (method)
+PetController.java:132-145  PetController+PetController.processUpdateForm (type)
+VetController.java:52-52  VetController.showVetList (method)
+Visit.java:38-43  Visit.date+Visit.description (var)
+VisitController.java:50-53  VisitController.setAllowedFields (method)
+VisitController.java:89-97  VisitController+VisitController.processNewVisitForm (method)
 
