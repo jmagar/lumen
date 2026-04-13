@@ -1,175 +1,47 @@
-diff --git a/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt b/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
-index 5653d357..1652df17 100644
---- a/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
-+++ b/formats/json-tests/commonTest/src/kotlinx/serialization/json/JsonCoerceInputValuesTest.kt
-@@ -155,8 +155,8 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
-     fun testNullableEnumWithoutDefault() {
-         val j = Json(json) { explicitNulls = false }
-         parametrizedTest { mode ->
--            assertEquals(NullableEnumHolder(null), j.decodeFromString("{}"))
--            assertEquals(NullableEnumHolder(null), j.decodeFromString("""{"enum":"incorrect"}"""))
-+            assertEquals(NullableEnumHolder(null), j.decodeFromString("{}", mode))
-+            assertEquals(NullableEnumHolder(null), j.decodeFromString("""{"enum":"incorrect"}""", mode))
-         }
+diff --git a/formats/json-tests/commonTest/src/kotlinx/serialization/JsonPathTest.kt b/formats/json-tests/commonTest/src/kotlinx/serialization/JsonPathTest.kt
+index 8d31ba22..10f94387 100644
+--- a/formats/json-tests/commonTest/src/kotlinx/serialization/JsonPathTest.kt
++++ b/formats/json-tests/commonTest/src/kotlinx/serialization/JsonPathTest.kt
+@@ -156,6 +156,27 @@ class JsonPathTest : JsonTestBase() {
+         expectPath(expectedPath) { json.decodeFromString(Sealed.serializer(), malformed) }
      }
  
-@@ -164,8 +164,8 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
-     fun testNullableEnumWithoutDefaultDoesNotCoerceExplicitly() {
-         val j = Json(json) { explicitNulls = true }
-         parametrizedTest { mode ->
--            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("{}") }
--            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("""{"enum":"incorrect"}""") }
-+            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("{}", mode) }
-+            assertFailsWith<SerializationException> { j.decodeFromString<NullableEnumHolder>("""{"enum":"incorrect"}""", mode) }
-         }
-     }
- 
-@@ -173,9 +173,9 @@ class JsonCoerceInputValuesTest : JsonTestBase() {
-     fun testNullableEnumWithDefault() {
-         val j = Json(json) { explicitNulls = false }
-         parametrizedTest { mode ->
--            assertEquals(NullableEnumWithDefault(), j.decodeFromString("{}"))
--            assertEquals(NullableEnumWithDefault(), j.decodeFromString("""{"e":"incorrect"}"""))
--            assertEquals(NullableEnumWithDefault(null), j.decodeFromString("""{"e":null}"""))
-+            assertEquals(NullableEnumWithDefault(), j.decodeFromString("{}", mode))
-+            assertEquals(NullableEnumWithDefault(), j.decodeFromString("""{"e":"incorrect"}""", mode))
-+            assertEquals(NullableEnumWithDefault(null), j.decodeFromString("""{"e":null}""", mode))
-         }
-     }
- }
-diff --git a/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt b/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
-index 00053297..e1c50d0c 100644
---- a/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
-+++ b/formats/json-tests/jsTest/src/kotlinx/serialization/json/JsonCoerceInputValuesDynamicTest.kt
-@@ -13,9 +13,9 @@ class JsonCoerceInputValuesDynamicTest {
-         isLenient = true
-     }
- 
--    private fun <T> doTest(inputs: List<dynamic>, expected: T, serializer: KSerializer<T>) {
-+    private fun <T> doTest(inputs: List<dynamic>, expected: T, serializer: KSerializer<T>, jsonImpl: Json = json) {
-         for (input in inputs) {
--            assertEquals(expected, json.decodeFromDynamic(serializer, input), "Failed on input: $input")
-+            assertEquals(expected, jsonImpl.decodeFromDynamic(serializer, input), "Failed on input: $input")
-         }
-     }
- 
-@@ -49,6 +49,20 @@ class JsonCoerceInputValuesDynamicTest {
-         }
-     }
- 
++    @Serializable
++    data class SimpleNested(val n: SimpleNested? = null, val t: DataObject? = null)
++
++    @Serializable
++    data object DataObject
++
 +    @Test
-+    fun testUseNullWithImplicitNulls() {
-+        val withImplicitNulls = Json(json) { explicitNulls = false }
-+        doTest(
-+            listOf(
-+                js("""{}"""),
-+                js("""{"enum":"incorrect"}"""),
-+            ),
-+            JsonCoerceInputValuesTest.NullableEnumHolder(null),
-+            JsonCoerceInputValuesTest.NullableEnumHolder.serializer(),
-+            withImplicitNulls
-+        )
++    fun testMalformedDataObjectInDeeplyNestedStructure() {
++        var outer = SimpleNested(t = DataObject)
++        repeat(20) {
++            outer = SimpleNested(n = outer)
++        }
++        val str = Json.encodeToString(SimpleNested.serializer(), outer)
++        // throw-away data
++        Json.decodeFromString(SimpleNested.serializer(), str)
++
++        val malformed = str.replace("{}", "42")
++        val expectedPath = "$" + ".n".repeat(20) + ".t\n"
++        expectPath(expectedPath) { Json.decodeFromString(SimpleNested.serializer(), malformed) }
 +    }
 +
-     @Test
-     fun testUseDefaultInMultipleCases() {
-         val testData = mapOf<dynamic, JsonCoerceInputValuesTest.MultipleValues>(
-diff --git a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
-index 2121b27a..ee3eb03b 100644
---- a/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
-+++ b/formats/json/commonMain/src/kotlinx/serialization/json/internal/TreeJsonDecoder.kt
-@@ -197,31 +197,35 @@ private open class JsonTreeDecoder(
- ) : AbstractJsonTreeDecoder(json, value, polymorphicDiscriminator) {
-     private var position = 0
-     private var forceNull: Boolean = false
--    /*
--     * Checks whether JSON has `null` value for non-null property or unknown enum value for enum property
--     */
--    private fun coerceInputValue(descriptor: SerialDescriptor, index: Int, tag: String): Boolean =
--        json.tryCoerceValue(
--            descriptor, index,
--            { currentElement(tag) is JsonNull },
--            { (currentElement(tag) as? JsonPrimitive)?.contentOrNull }
--        )
- 
-     override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
-         while (position < descriptor.elementsCount) {
-             val name = descriptor.getTag(position++)
-             val index = position - 1
-             forceNull = false
--            if ((name in value || absenceIsNull(descriptor, index))
--                && (!configuration.coerceInputValues || !coerceInputValue(descriptor, index, name))
--            ) {
-+
-+            if (name in value || setForceNull(descriptor, index)) {
-+                // if forceNull is true, then decodeNotNullMark returns false and `null` is automatically inserted
-+                // by Decoder.decodeIfNullable
-+                if (!configuration.coerceInputValues) return index
-+
-+                if (json.tryCoerceValue(
-+                        descriptor, index,
-+                        { currentElementOrNull(name) is JsonNull },
-+                        { (currentElementOrNull(name) as? JsonPrimitive)?.contentOrNull },
-+                        { // an unknown enum value should be coerced to null via decodeNotNullMark if explicitNulls=false :
-+                            if (setForceNull(descriptor, index)) return index
-+                        }
-+                    )
-+                ) continue // do not read coerced value
-+
-                 return index
-             }
-         }
-         return CompositeDecoder.DECODE_DONE
+     private inline fun expectPath(path: String, block: () -> Unit) {
+         val message = runCatching { block() }
+             .exceptionOrNull()!!.message!!
+diff --git a/formats/json/commonMain/src/kotlinx/serialization/json/internal/JsonPath.kt b/formats/json/commonMain/src/kotlinx/serialization/json/internal/JsonPath.kt
+index 14e70a42..d6e3de15 100644
+--- a/formats/json/commonMain/src/kotlinx/serialization/json/internal/JsonPath.kt
++++ b/formats/json/commonMain/src/kotlinx/serialization/json/internal/JsonPath.kt
+@@ -134,7 +134,9 @@ internal class JsonPath {
+     private fun resize() {
+         val newSize = currentDepth * 2
+         currentObjectPath = currentObjectPath.copyOf(newSize)
+-        indicies = indicies.copyOf(newSize)
++        val newIndices = IntArray(newSize) { -1 }
++        indicies.copyInto(newIndices)
++        indicies = newIndices
      }
  
--    private fun absenceIsNull(descriptor: SerialDescriptor, index: Int): Boolean {
-+    private fun setForceNull(descriptor: SerialDescriptor, index: Int): Boolean {
-         forceNull = !json.configuration.explicitNulls
-                 && !descriptor.isElementOptional(index) && descriptor.getElementDescriptor(index).isNullable
-         return forceNull
-@@ -257,6 +261,8 @@ private open class JsonTreeDecoder(
- 
-     override fun currentElement(tag: String): JsonElement = value.getValue(tag)
- 
-+    fun currentElementOrNull(tag: String): JsonElement? = value[tag]
-+
-     override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
-         // polyDiscriminator needs to be preserved so the check for unknown keys
-         // in endStructure can filter polyDiscriminator out.
-diff --git a/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt b/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
-index fc9a5236..f5d6bd61 100644
---- a/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
-+++ b/formats/json/jsMain/src/kotlinx/serialization/json/internal/DynamicDecoders.kt
-@@ -85,7 +85,22 @@ private open class DynamicInput(
-             val name = descriptor.getTag(currentPosition++)
-             val index = currentPosition - 1
-             forceNull = false
--            if ((hasName(name) || absenceIsNull(descriptor, index)) && (!json.configuration.coerceInputValues || !coerceInputValue(descriptor, index, name))) {
-+
-+            if (hasName(name) || setForceNull(descriptor, index)) {
-+                // if forceNull is true, then decodeNotNullMark returns false and `null` is automatically inserted
-+                // by Decoder.decodeIfNullable
-+                if (!json.configuration.coerceInputValues) return index
-+
-+                if (json.tryCoerceValue(
-+                        descriptor, index,
-+                        { getByTag(name) == null },
-+                        { getByTag(name) as? String },
-+                        { // an unknown enum value should be coerced to null via decodeNotNullMark if explicitNulls=false :
-+                            if (setForceNull(descriptor, index)) return index
-+                        }
-+                    )
-+                ) continue // do not read coerced value
-+
-                 return index
-             }
-         }
-@@ -94,7 +109,7 @@ private open class DynamicInput(
- 
-     private fun hasName(name: String) = value[name] !== undefined
- 
--    private fun absenceIsNull(descriptor: SerialDescriptor, index: Int): Boolean {
-+    private fun setForceNull(descriptor: SerialDescriptor, index: Int): Boolean {
-         forceNull = !json.configuration.explicitNulls
-                 && !descriptor.isElementOptional(index) && descriptor.getElementDescriptor(index).isNullable
-         return forceNull
+     override fun toString(): String = getPath()

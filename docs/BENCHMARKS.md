@@ -61,7 +61,7 @@ For each run, bench-swe captures:
 | rust-hard       | Rust       | [toml-rs/toml](https://github.com/toml-rs/toml)               | False duplicate key error for dotted keys when parent table is implicitly created |
 
 Embedding model: `ordis/jina-embeddings-v2-base-code` (Ollama, 768-dim). Claude
-model: Sonnet (execution), Sonnet 4.6 (judging).
+model: Haiku 4.5 (execution), Sonnet 4.6 (judging).
 
 ---
 
@@ -113,10 +113,8 @@ Quality was maintained in every task.
 | dart-hard       | Dart | with-lumen | Good    | $0.153 | 50.9s  | 3,862      | 663K       | 14         |
 | cpp-hard        | C++    | baseline   | Good    | $1.102 | 370.7s | 15,506     | 1,327K     | 63         |
 | cpp-hard        | C++    | with-lumen | Good    | $1.014 | 359.1s | 22,056     | 1,019K     | 51         |
-| kotlin-hard ¹   | Kotlin | baseline   | Good    | $0.740 | 308.3s | 14,799     | 745K       | 39         |
-| kotlin-hard ¹   | Kotlin | with-lumen | Perfect | $0.510 | 195.8s | 11,776     | 505K       | 24         |
-
-¹ Kotlin uses `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.
+| kotlin-hard     | Kotlin | baseline   | Good    | $0.561 | 350.1s | 15,511     | 2,277K     | 79         |
+| kotlin-hard     | Kotlin | with-lumen | Perfect | $0.352 | 231.4s | 13,896     | 2,143K     | 34         |
 
 ---
 
@@ -315,26 +313,23 @@ than baseline.
 | Metric        | Baseline | With Lumen | Delta      |
 | ------------- | -------- | ---------- | ---------- |
 | Rating        | Good     | **Perfect**| **↑**      |
-| Cost          | $0.740   | $0.510     | **-31.1%** |
-| Time          | 308.3s   | 195.8s     | **-36.5%** |
-| Output tokens | 14,799   | 11,776     | **-20.4%** |
-| Cache reads   | 745K     | 505K       | **-32.2%** |
-| Tool calls    | 39       | 24         | **-38.5%** |
-
-*Run with `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.*
+| Cost          | $0.561   | $0.352     | **-37.3%** |
+| Time          | 350.1s   | 231.4s     | **-33.9%** |
+| Output tokens | 15,511   | 13,896     | **-10.4%** |
+| Cache reads   | 2,277K   | 2,143K     | **-5.9%**  |
+| Tool calls    | 79       | 34         | **-57.0%** |
 
 The bug: `JsonPath.resize()` in kotlinx.serialization called `copyOf()` to grow
 the `indicies` array but left new slots zero-initialized rather than `-1`,
 causing `ArrayIndexOutOfBoundsException` at 8+ nesting levels instead of a
 clean `SerializationException`.
 
-With Lumen, a single semantic search (`"data object parsing JSON
-deserialization"`) surfaced `JsonPath.resize()` at 43 tokens — precise enough
-for Claude to identify the uninitialized sentinel immediately. The resulting
-patch used `fill(-1, oldSize, newSize)` and added one tightly-scoped regression
-test at the exact failure depth. The baseline found the same root cause (same
-fix) but required 39 tool calls and 308 seconds of exploration, and the test
-covered two depths rather than the minimal one.
+With Lumen, semantic search (3 calls) surfaced `JsonPath.resize()` at 43
+tokens — precise enough for Claude to identify the uninitialized sentinel
+immediately. The resulting patch used `fill(-1, oldSize, newSize)` and added
+one tightly-scoped regression test at the exact failure depth. The baseline
+found the same root cause (same fix) but required 79 tool calls and 350 seconds
+of exploration, and the test covered two depths rather than the minimal one.
 
 ---
 
@@ -344,7 +339,7 @@ covered two depths rather than the minimal one.
 | ---------- | --------------- | ----------------- | ------------- |
 | JavaScript | Perfect         | Perfect           | Same          |
 | Python     | Perfect         | Perfect           | Same          |
-| Kotlin ¹   | Good            | **Perfect**       | **↑ improved**|
+| Kotlin     | Good            | **Perfect**       | **↑ improved**|
 | Dart       | Good            | Good              | Same          |
 | PHP        | Good            | Good              | Same          |
 | TypeScript | Good            | Good              | Same          |
@@ -352,8 +347,6 @@ covered two depths rather than the minimal one.
 | Go         | Good            | Good              | Same          |
 | C++        | Good            | Good              | Same          |
 | Rust       | Poor            | Poor              | Same          |
-
-¹ Kotlin uses `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.
 
 Quality was maintained or improved in **all 10 tasks** — zero regressions.
 Kotlin is the first task where Lumen produced a measurably better patch:
@@ -375,8 +368,8 @@ metric. The range spans from -8% (C++) to -76% (Dart):
 | ---------- | ------------- | --------------- | ---------- |
 | Dart       | $0.634        | $0.153          | **-75.8%** |
 | Rust       | $0.611        | $0.375          | **-38.7%** |
+| Kotlin     | $0.561        | $0.352          | **-37.3%** |
 | JavaScript | $0.482        | $0.325          | **-32.6%** |
-| Kotlin ¹   | $0.740        | $0.510          | **-31.1%** |
 | TypeScript | $0.186        | $0.136          | **-27.1%** |
 | PHP        | $0.186        | $0.136          | **-26.8%** |
 | Ruby       | $0.539        | $0.411          | **-23.7%** |
@@ -398,7 +391,7 @@ code generation. Fewer output tokens means Claude explores less and acts more:
 | PHP        | 1,936           | 796               | **-58.9%** |
 | Python     | 1,710           | 1,092             | **-36.1%** |
 | Rust       | 17,717          | 12,291            | **-30.6%** |
-| Kotlin ¹   | 14,799          | 11,776            | **-20.4%** |
+| Kotlin     | 15,511          | 13,896            | -10.4%     |
 | Go         | 11,475          | 10,283            | -10.4%     |
 | Ruby       | 6,143           | 5,581             | -9.1%      |
 | C++        | 15,506          | 22,056            | +42.2%     |
@@ -412,9 +405,9 @@ time reductions:
 | ---------- | ------------- | --------------- | ---------- |
 | Dart       | 246.1s        | 50.9s           | **-79.3%** |
 | JavaScript | 254.7s        | 119.3s          | **-53.2%** |
-| Kotlin ¹   | 308.3s        | 195.8s          | **-36.5%** |
 | Rust       | 309.7s        | 204.0s          | **-34.1%** |
 | PHP        | 51.5s         | 34.0s           | **-34.0%** |
+| Kotlin     | 350.1s        | 231.4s          | **-33.9%** |
 | TypeScript | 84.4s         | 56.3s           | **-33.3%** |
 | Python     | 43.0s         | 30.6s           | **-28.8%** |
 | Ruby       | 185.5s        | 165.2s          | **-10.9%** |
@@ -432,7 +425,7 @@ replaces other tool usage:
 | PHP        | 2                  | 7                        | 10                          |
 | Rust       | 2                  | 9                        | 22                          |
 | TypeScript | 1                  | 9                        | 6                           |
-| Kotlin ¹   | 1                  | 24                       | 39                          |
+| Kotlin     | 3                  | 34                       | 79                          |
 | Dart       | —                  | 14                       | 61                          |
 | JavaScript | 2                  | 16                       | 18                          |
 | Go         | 3                  | 35                       | 51                          |

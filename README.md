@@ -232,15 +232,13 @@ issues (`ordis/jina-embeddings-v2-base-code`, Ollama):
 | ------------- | -------------- | -------------- | ----------------------- | --------------------- |
 | Rust          | **-39%**       | **-34%**       | **-31%** (18K → 12K)    | Poor (both)           |
 | JavaScript    | **-33%**       | **-53%**       | **-66%** (14K → 5K)     | Perfect (both)        |
-| Kotlin ¹      | **-31%**       | **-37%**       | **-20%** (15K → 12K)    | Good → **Perfect** ↑  |
+| Kotlin        | **-37%**       | **-34%**       | -10% (15K → 14K)         | Good → **Perfect** ↑  |
 | TypeScript    | **-27%**       | **-33%**       | **-64%** (5K → 1.8K)    | Good (both)           |
 | PHP           | **-27%**       | **-34%**       | **-59%** (1.9K → 0.8K)  | Good (both)           |
 | Ruby          | **-24%**       | **-11%**       | -9% (6.1K → 5.6K)       | Good (both)           |
 | Python        | **-20%**       | **-29%**       | **-36%** (1.7K → 1.1K)  | Perfect (both)        |
 | Go            | **-12%**       | -9%            | -10% (11K → 10K)         | Good (both)           |
 | C++           | **-8%**        | -3%            | +42% (feature task)      | Good (both)           |
-
-¹ Kotlin rerun uses `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.
 
 **Cost was reduced in every language tested. Quality was maintained or improved
 in every task — zero regressions.** Kotlin is the first task where Lumen lifted
