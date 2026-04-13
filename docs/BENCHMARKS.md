@@ -111,8 +111,12 @@ Quality was maintained in every task.
 | go-hard         | Go   | with-lumen | Good    | $0.568 | 264.1s | 10,283     | 538K       | 35         |
 | dart-hard       | Dart | baseline   | Good    | $0.634 | 246.1s | 21,286     | 4,126K     | 61         |
 | dart-hard       | Dart | with-lumen | Good    | $0.153 | 50.9s  | 3,862      | 663K       | 14         |
-| cpp-hard        | C++  | baseline   | Good    | $1.102 | 370.7s | 15,506     | 1,327K     | 63         |
-| cpp-hard        | C++  | with-lumen | Good    | $1.014 | 359.1s | 22,056     | 1,019K     | 51         |
+| cpp-hard        | C++    | baseline   | Good    | $1.102 | 370.7s | 15,506     | 1,327K     | 63         |
+| cpp-hard        | C++    | with-lumen | Good    | $1.014 | 359.1s | 22,056     | 1,019K     | 51         |
+| kotlin-hard ¹   | Kotlin | baseline   | Good    | $0.740 | 308.3s | 14,799     | 745K       | 39         |
+| kotlin-hard ¹   | Kotlin | with-lumen | Perfect | $0.510 | 195.8s | 11,776     | 505K       | 24         |
+
+¹ Kotlin uses `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.
 
 ---
 
@@ -302,6 +306,36 @@ tokens increased by 42%, suggesting Lumen's search results provided context that
 Claude used to generate more comprehensive code. Despite being the one task type
 where Lumen's advantage is smallest, it still delivered cost savings.
 
+### Kotlin — kotlinx.serialization (ArrayIndexOutOfBoundsException in deep JSON)
+
+**The first quality improvement.** Lumen lifted the patch rating from Good to
+Perfect — the only task in the suite where with-lumen produced a better patch
+than baseline.
+
+| Metric        | Baseline | With Lumen | Delta      |
+| ------------- | -------- | ---------- | ---------- |
+| Rating        | Good     | **Perfect**| **↑**      |
+| Cost          | $0.740   | $0.510     | **-31.1%** |
+| Time          | 308.3s   | 195.8s     | **-36.5%** |
+| Output tokens | 14,799   | 11,776     | **-20.4%** |
+| Cache reads   | 745K     | 505K       | **-32.2%** |
+| Tool calls    | 39       | 24         | **-38.5%** |
+
+*Run with `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.*
+
+The bug: `JsonPath.resize()` in kotlinx.serialization called `copyOf()` to grow
+the `indicies` array but left new slots zero-initialized rather than `-1`,
+causing `ArrayIndexOutOfBoundsException` at 8+ nesting levels instead of a
+clean `SerializationException`.
+
+With Lumen, a single semantic search (`"data object parsing JSON
+deserialization"`) surfaced `JsonPath.resize()` at 43 tokens — precise enough
+for Claude to identify the uninitialized sentinel immediately. The resulting
+patch used `fill(-1, oldSize, newSize)` and added one tightly-scoped regression
+test at the exact failure depth. The baseline found the same root cause (same
+fix) but required 39 tool calls and 308 seconds of exploration, and the test
+covered two depths rather than the minimal one.
+
 ---
 
 ## Quality Summary
@@ -310,6 +344,7 @@ where Lumen's advantage is smallest, it still delivered cost savings.
 | ---------- | --------------- | ----------------- | ------------- |
 | JavaScript | Perfect         | Perfect           | Same          |
 | Python     | Perfect         | Perfect           | Same          |
+| Kotlin ¹   | Good            | **Perfect**       | **↑ improved**|
 | Dart       | Good            | Good              | Same          |
 | PHP        | Good            | Good              | Same          |
 | TypeScript | Good            | Good              | Same          |
@@ -318,8 +353,12 @@ where Lumen's advantage is smallest, it still delivered cost savings.
 | C++        | Good            | Good              | Same          |
 | Rust       | Poor            | Poor              | Same          |
 
-Quality was maintained in **all 9 tasks** — zero regressions. Where the baseline
-produced Perfect patches, Lumen matched it. Where the baseline produced Good
+¹ Kotlin uses `claude-sonnet-4-6`; all other tasks use `claude-haiku-4-5`.
+
+Quality was maintained or improved in **all 10 tasks** — zero regressions.
+Kotlin is the first task where Lumen produced a measurably better patch:
+semantic search surfaced the exact buggy function in one query, giving Claude
+enough precision to write a tighter test. Where the baseline produced Perfect
 patches, Lumen matched it. And where the task was too hard for the baseline
 (Rust), Lumen didn't make it worse — it just made the failure cheaper.
 
@@ -329,7 +368,7 @@ patches, Lumen matched it. And where the task was too hard for the baseline
 
 ### 1. Cost Reduced in Every Language
 
-Lumen reduced cost in **all 9 languages** — the only universally positive
+Lumen reduced cost in **all 10 languages** — the only universally positive
 metric. The range spans from -8% (C++) to -76% (Dart):
 
 | Language   | Baseline cost | With-Lumen cost | Delta      |
@@ -337,6 +376,7 @@ metric. The range spans from -8% (C++) to -76% (Dart):
 | Dart       | $0.634        | $0.153          | **-75.8%** |
 | Rust       | $0.611        | $0.375          | **-38.7%** |
 | JavaScript | $0.482        | $0.325          | **-32.6%** |
+| Kotlin ¹   | $0.740        | $0.510          | **-31.1%** |
 | TypeScript | $0.186        | $0.136          | **-27.1%** |
 | PHP        | $0.186        | $0.136          | **-26.8%** |
 | Ruby       | $0.539        | $0.411          | **-23.7%** |
@@ -346,7 +386,7 @@ metric. The range spans from -8% (C++) to -76% (Dart):
 
 ### 2. Output Token Reduction Is the Primary Driver
 
-In 8/9 languages, output tokens dropped — up to 82% for Dart. The one
+In 9/10 languages, output tokens dropped — up to 82% for Dart. The one
 exception is C++ where output tokens increased (+42%) due to more comprehensive
 code generation. Fewer output tokens means Claude explores less and acts more:
 
@@ -358,6 +398,7 @@ code generation. Fewer output tokens means Claude explores less and acts more:
 | PHP        | 1,936           | 796               | **-58.9%** |
 | Python     | 1,710           | 1,092             | **-36.1%** |
 | Rust       | 17,717          | 12,291            | **-30.6%** |
+| Kotlin ¹   | 14,799          | 11,776            | **-20.4%** |
 | Go         | 11,475          | 10,283            | -10.4%     |
 | Ruby       | 6,143           | 5,581             | -9.1%      |
 | C++        | 15,506          | 22,056            | +42.2%     |
@@ -371,6 +412,7 @@ time reductions:
 | ---------- | ------------- | --------------- | ---------- |
 | Dart       | 246.1s        | 50.9s           | **-79.3%** |
 | JavaScript | 254.7s        | 119.3s          | **-53.2%** |
+| Kotlin ¹   | 308.3s        | 195.8s          | **-36.5%** |
 | Rust       | 309.7s        | 204.0s          | **-34.1%** |
 | PHP        | 51.5s         | 34.0s           | **-34.0%** |
 | TypeScript | 84.4s         | 56.3s           | **-33.3%** |
@@ -390,19 +432,23 @@ replaces other tool usage:
 | PHP        | 2                  | 7                        | 10                          |
 | Rust       | 2                  | 9                        | 22                          |
 | TypeScript | 1                  | 9                        | 6                           |
+| Kotlin ¹   | 1                  | 24                       | 39                          |
 | Dart       | —                  | 14                       | 61                          |
 | JavaScript | 2                  | 16                       | 18                          |
 | Go         | 3                  | 35                       | 51                          |
 | Ruby       | 10                 | 47                       | 53                          |
 | C++        | 6                  | 51                       | 63                          |
 
-### 5. Zero Quality Regressions
+### 5. Zero Quality Regressions — and One Quality Improvement
 
-Lumen maintained patch quality in all 9 tasks. Two tasks achieved Perfect
-ratings (JavaScript, Python) — identical patches to the gold standard. Six
-achieved Good ratings with correct fixes via different approaches. Even the
-one task too hard for either approach (Rust) showed no degradation — Lumen
-just made the failure 39% cheaper.
+Lumen maintained or improved patch quality in all 10 tasks. Kotlin is the
+first task where Lumen lifted quality: one precise semantic search surfaced
+the 43-token `JsonPath.resize()` chunk, giving Claude enough context for a
+focused fix and a tighter regression test (Good → Perfect). Three tasks
+achieved Perfect with-lumen ratings (JavaScript, Python, Kotlin). Six achieved
+Good ratings with correct fixes via different approaches. Even the one task too
+hard for either approach (Rust) showed no degradation — Lumen just made the
+failure 39% cheaper.
 
 ### 6. Results Are Reproducible
 
@@ -410,7 +456,7 @@ All benchmark artifacts — raw JSONL streams, patch diffs, metrics, and judge
 ratings — are committed to this repository. The benchmark framework is
 deterministic in setup (same commit, same issue, same tools) while allowing
 natural LLM variation in execution. The consistent direction of improvement
-across 9 independent language benchmarks validates that the results are
+across 10 independent language benchmarks validates that the results are
 reliable.
 
 ---

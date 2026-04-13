@@ -1,6 +1,6 @@
 # SWE-Bench Summary
 
-Generated: 2026-04-09 10:22 UTC | Embed: `ordis/jina-embeddings-v2-base-code` | Claude: `haiku`
+Generated: 2026-04-12 13:25 UTC | Embed: `ordis/jina-embeddings-v2-base-code` | Claude: `sonnet`
 
 | Scenario | Description |
 |----------|-------------|
@@ -11,18 +11,18 @@ Generated: 2026-04-09 10:22 UTC | Embed: `ordis/jina-embeddings-v2-base-code` | 
 
 | Task | Lang | baseline Rating | with-lumen Rating | baseline Cost | with-lumen Cost | baseline Time | with-lumen Time |
 |------|------|------------|------------|----------|----------|----------|----------|
-| java-hard | java | — | — | $0.6012 | $0.5934 | 402.4s | 294.0s |
+| kotlin-hard | kotlin | Good | Perfect | $0.7397 | $0.5098 | 308.3s | 195.8s |
 
 ## Aggregate by Scenario
 
 | Scenario | Perfect | Good | Poor | Avg Cost | Avg Time | Avg Tokens |
 |----------|---------|------|------|----------|----------|------------|
-| **baseline** | 0 | 0 | 0 | $0.6012 | 402.4s | 21207 |
-| **with-lumen** | 0 | 0 | 0 | $0.5934 | 294.0s | 23354 |
+| **baseline** | 0 | 1 | 0 | $0.7397 | 308.3s | 14840 |
+| **with-lumen** | 1 | 0 | 0 | $0.5098 | 195.8s | 11807 |
 
 ## Aggregate by Language
 
 | Language | baseline wins | with-lumen wins |
 |----------|--------------|--------------|
-| java | 0 | 0 |
+| kotlin | 0 | 1 |
 
