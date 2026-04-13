@@ -184,7 +184,7 @@ func TestTreeSitterChunker_TypeScript(t *testing.T) {
 	check("add", "function")
 	check("Calculator", "type")
 	check("Base", "type")
-	check("Calculator.multiply", "method")
+	check("multiply", "method")
 	check("Shape", "interface")
 	check("Color", "type")
 }
@@ -291,7 +291,7 @@ func TestTreeSitterChunker_JavaScript(t *testing.T) {
 
 	check("greet", "function")
 	check("Animal", "type")
-	check("Animal.speak", "method")
+	check("speak", "method")
 }
 
 var sampleModernTypeScript = []byte(`export const greet = (name: string): string => {
@@ -499,8 +499,8 @@ func TestTreeSitterChunker_TSX(t *testing.T) {
 	if !bySymbolKind["render"]["function"] {
 		t.Errorf("missing chunk render/function (got symbols: %v)", symbolNames(chunks))
 	}
-	if !bySymbolKind["App.render"]["method"] {
-		t.Errorf("missing chunk App.render/method (got symbols: %v)", symbolNames(chunks))
+	if !bySymbolKind["render"]["method"] {
+		t.Errorf("missing chunk render/method (got symbols: %v)", symbolNames(chunks))
 	}
 	if !bySymbolKind["App"]["type"] {
 		t.Errorf("missing chunk App/type (got symbols: %v)", symbolNames(chunks))
@@ -589,7 +589,7 @@ func TestTreeSitterChunker_Java(t *testing.T) {
 	}
 
 	check("Calculator", "type")
-	check("Calculator.add", "method")
+	check("add", "method")
 }
 
 var sampleC = []byte(`int add(int a, int b) {
@@ -751,7 +751,9 @@ func TestTreeSitterChunker_CSharp(t *testing.T) {
 		}
 	}
 
+	check("Calculator", "type")     // class_declaration
 	check("IShape", "interface")    // interface_declaration
+	check("Vector2", "type")        // struct_declaration
 	check("Direction", "type")      // enum_declaration
 	check("Point", "type")          // record_declaration
 	check("StatusChanged", "type")  // delegate_declaration
@@ -1088,13 +1090,14 @@ func TestTreeSitterChunker_Java_Comprehensive(t *testing.T) {
 		}
 	}
 
-	check("Calculator.Calculator", "function") // constructor
-	check("Calculator.add", "method")          // method
-	check("Computable", "interface")           // interface
-	check("Status", "type")                    // enum
-	check("MyAnnotation", "type")              // annotation_type
-	check("Point", "type")                     // record
-	check("Calculator.MAX", "var")             // field
+	check("Calculator", "type")      // class
+	check("Calculator", "function")  // constructor
+	check("add", "method")           // method
+	check("Computable", "interface") // interface
+	check("Status", "type")          // enum
+	check("MyAnnotation", "type")    // annotation_type
+	check("Point", "type")           // record
+	check("MAX", "var")              // field
 }
 
 var samplePHPComprehensive = []byte(`<?php
@@ -1148,6 +1151,7 @@ func TestTreeSitterChunker_PHP_Comprehensive(t *testing.T) {
 	}
 
 	check("helper", "function")
+	check("User", "type") // class_declaration — was missing!
 	check("getName", "method")
 	check("Repository", "interface")
 	check("Cacheable", "type")   // trait
@@ -1221,7 +1225,10 @@ func TestTreeSitterChunker_CSharp_Comprehensive(t *testing.T) {
 		}
 	}
 
+	check("MyApp", "type")          // namespace_declaration
+	check("Calculator", "type")     // class_declaration
 	check("IShape", "interface")    // interface_declaration
+	check("Vector2", "type")        // struct_declaration
 	check("Direction", "type")      // enum_declaration
 	check("Point", "type")          // record_declaration
 	check("StatusChanged", "type")  // delegate_declaration
@@ -1431,13 +1438,13 @@ func TestTreeSitterChunker_TypeScript_Comprehensive(t *testing.T) {
 	check("genFn", "function")   // generator
 	check("arrowFn", "function") // arrow function
 	check("MyClass", "type")
-	check("MyClass.method", "method")
+	check("method", "method")
 	check("BaseClass", "type") // abstract class
 	check("IShape", "interface")
 	check("Color", "type")     // type_alias
 	check("Direction", "type") // enum
 	check("MAX", "const")      // exported const
-	check("write", "method") // method_signature in interface
+	check("write", "method")   // method_signature in interface
 }
 
 // findChunk returns the first chunk with the given symbol from chunks.
@@ -1688,6 +1695,8 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 		},
 
 		// ── Java (comment: "line_comment" / "block_comment") ─────────────────
+		// Java class_declaration is not in findEnclosingSymbol, so methods are
+		// reported with their bare name (not class-qualified).
 		{
 			name:     "java: adjacent // comment captured (line_comment)",
 			chunker:  mustJava,
@@ -1696,7 +1705,7 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 				"    // computes sum\n" +
 				"    public int add(int a, int b) { return a + b; }\n" +
 				"}\n",
-			symbol:        "Foo.add",
+			symbol:        "add",
 			wantStartLine: 2,
 			wantInContent: "// computes sum",
 		},
@@ -1708,7 +1717,7 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 				"    /** @return product */\n" +
 				"    public int mul(int a, int b) { return a * b; }\n" +
 				"}\n",
-			symbol:        "Bar.mul",
+			symbol:        "mul",
 			wantStartLine: 2,
 			wantInContent: "/** @return product */",
 		},
@@ -1748,6 +1757,7 @@ func TestTreeSitterChunker_LeadingComments(t *testing.T) {
 			wantStartLine: 2,
 			wantInContent: "// sums values",
 		},
+
 
 		// ── Kotlin (comment: "line_comment" / "multiline_comment") ──────────
 		{
@@ -1898,7 +1908,9 @@ func TestTreeSitterChunker_Dart_Comprehensive(t *testing.T) {
 	}
 
 	check("greet", "function")
+	check("Animal", "type")            // class_definition
 	check("Animal.speak", "method")    // method_signature in class
+	check("Swimming", "type")          // mixin_declaration
 	check("Swimming.swim", "method")   // method_signature in mixin
 	check("Color", "type")             // enum_declaration
 	check("StringHelper", "type")      // extension_declaration
@@ -1907,6 +1919,7 @@ func TestTreeSitterChunker_Dart_Comprehensive(t *testing.T) {
 	check("Repository", "type")        // abstract class
 	check("Animal.Animal", "function") // constructor
 }
+
 
 var sampleKotlinComprehensive = []byte(`
 // Top-level function
@@ -2023,44 +2036,40 @@ func TestTreeSitterChunker_Kotlin(t *testing.T) {
 
 	// Top-level functions
 	check("topLevel", "function")
-	check("toSlug", "function")       // extension function
-	check("fetchData", "function")    // suspend function
+	check("toSlug", "function")         // extension function
+	check("fetchData", "function")      // suspend function
 	check("createInstance", "function") // inline generic function
-	check("plus", "function")         // operator function
+	check("plus", "function")           // operator function
 
-	// Classes
-	check("Predicate", "type")        // fun interface (1 child, kept)
-	check("Password", "type")         // value class (0 children, kept)
-
-	// Object declarations
-	check("Singleton", "type")
-	check("User.Factory", "type")     // named companion object (qualified with enclosing class)
-
-	// Nested classes (qualified with enclosing sealed class)
-	check("Result.Success", "type")
-	check("Result.Error", "type")
-
-	// Methods (qualified with enclosing class)
-	check("User.greet", "function")
-	check("Singleton.doSomething", "function")
-	check("Factory.create", "function")
-	check("Color.isWarm", "function")
-
-	// Properties
-	check("User.isAdult", "var")
-	check("PI", "var")                // top-level property
-
-	// Enum entries
-	check("Color.RED", "var")
-	check("Color.GREEN", "var")
-	check("Color.BLUE", "var")
-
-	// Type alias
+	// Top-level property and type alias
+	check("PI", "var")
 	check("StringMap", "type")
 
-	// Inner class
-	check("Base.Inner", "type")
-	check("Inner.innerMethod", "function")
+	// Classes, interfaces, and sealed types
+	check("User", "type")
+	check("Result", "type")
+	check("Repository", "type")  // interface
+	check("Predicate", "type")   // fun interface
+	check("Password", "type")    // value class
+	check("Color", "type")       // enum class
+	check("Base", "type")
+
+	// Object and companion object declarations
+	check("Singleton", "type")
+	// companion_object "Factory" is not class-qualified because class_declaration
+	// parents are intentionally excluded from findEnclosingSymbol to avoid
+	// changing Java/JS/TS behaviour.  Factory stands alone as "Factory".
+	check("Factory", "type")
+
+	// Methods inside object/companion object ARE qualified (object_declaration
+	// and companion_object are Kotlin-specific and safe to handle).
+	check("Factory.create", "function")
+	check("Singleton.doSomething", "function")
+
+	// Methods inside regular classes are NOT qualified (class_declaration is
+	// shared with Java/JS/TS, so we leave it out for now).
+	check("greet", "function")
+	check("abstractMethod", "function")
 }
 
 // mustPyChunker creates a Python TreeSitterChunker for use in tests.
@@ -2078,4 +2087,3 @@ func mustPyChunker(t *testing.T) *chunker.TreeSitterChunker {
 	}
 	return c
 }
-

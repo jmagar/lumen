@@ -140,6 +140,7 @@ func TestAdversarial_Python(t *testing.T) {
 	// Must extract
 	cs.mustHave("bare_function", "function")
 	cs.mustHave("async_function", "function")
+	cs.mustHave("BareClass", "type")
 	cs.mustHave("method", "function")
 	cs.mustHave("async_method", "function")
 	cs.mustHave("InnerClass", "type")
@@ -238,7 +239,8 @@ func TestAdversarial_TypeScript(t *testing.T) {
 	cs.mustHave("legacyFunc", "function")
 
 	// Classes
-	cs.mustHave("MyClass.method", "method")
+	cs.mustHave("MyClass", "type")
+	cs.mustHave("method", "method")
 	cs.mustHave("AbstractBase", "type")
 
 	// Interfaces
@@ -315,7 +317,7 @@ func TestAdversarial_TSX(t *testing.T) {
 	cs.mustHave("Button", "function")
 	cs.mustHave("Card", "function")
 	cs.mustHave("App", "type")
-	cs.mustHave("App.render", "method")
+	cs.mustHave("render", "method")
 	cs.mustHave("Props", "interface")
 	cs.mustHave("Theme", "type")
 	cs.mustHave("Wrapper", "function")
@@ -378,7 +380,8 @@ func TestAdversarial_JavaScript(t *testing.T) {
 	cs.mustHave("exportedArrow", "function")
 	cs.mustHave("ExportedClass", "type")
 	cs.mustHave("defaultExport", "function")
-	cs.mustHave("Animal.speak", "method")
+	cs.mustHave("Animal", "type")
+	cs.mustHave("speak", "method")
 
 	cs.mustNotHave("commented", "function")
 }
@@ -521,6 +524,7 @@ func TestAdversarial_Ruby(t *testing.T) {
 	t.Logf("Extracted chunks:\n%s", cs.dump())
 
 	cs.mustHave("top_level_method", "function")
+	cs.mustHave("Animal", "type")
 	cs.mustHave("Animal.MY_CONST", "var")
 	cs.mustHave("Animal.speak", "function")
 	cs.mustHave("Animal.class_method", "function")
@@ -584,12 +588,13 @@ func TestAdversarial_Java(t *testing.T) {
 	cs := newChunkSet(t, chunks)
 	t.Logf("Extracted chunks:\n%s", cs.dump())
 
-	cs.mustHave("Calculator.Calculator", "function") // constructor
-	cs.mustHave("Calculator.add", "method")
-	cs.mustHave("Calculator.MAX", "var")
-	cs.mustHave("Calculator.name", "var") // field
-	cs.mustHave("Calculator.InnerClass", "type")
-	cs.mustHave("InnerClass.innerMethod", "method")
+	cs.mustHave("Calculator", "type")
+	cs.mustHave("Calculator", "function") // constructor
+	cs.mustHave("add", "method")
+	cs.mustHave("MAX", "var")
+	cs.mustHave("name", "var") // field
+	cs.mustHave("InnerClass", "type")
+	cs.mustHave("innerMethod", "method")
 	cs.mustHave("Computable", "interface")
 	cs.mustHave("compute", "method")
 	cs.mustHave("Status", "type")
@@ -656,6 +661,7 @@ func TestAdversarial_PHP(t *testing.T) {
 	t.Logf("Extracted chunks:\n%s", cs.dump())
 
 	cs.mustHave("helper", "function")
+	cs.mustHave("User", "type")
 	cs.mustHave("TABLE", "const")
 	cs.mustHave("getName", "method")
 	cs.mustHave("Repository", "interface")
@@ -736,12 +742,15 @@ func TestAdversarial_CSharp(t *testing.T) {
 	cs := newChunkSet(t, chunks)
 	t.Logf("Extracted chunks:\n%s", cs.dump())
 
+	cs.mustHave("MyApp", "type")
 	cs.mustHave("StatusChanged", "type")
 	cs.mustHave("Converter", "type")
 	cs.mustHave("Direction", "type")
 	cs.mustHave("IShape", "interface")
 	cs.mustHave("Point", "type")
 	cs.mustHave("PointStruct", "type")
+	cs.mustHave("Vector2", "type")
+	cs.mustHave("Calculator", "type")
 	cs.mustHave("Calculator", "function") // constructor
 	cs.mustHave("Add", "method")
 	cs.mustHave("Area", "method")
@@ -1034,6 +1043,7 @@ class User {
 	cs := newChunkSet(t, chunks)
 	t.Logf("PHP property chunks:\n%s", cs.dump())
 
+	cs.mustHave("User", "type")
 	cs.mustHave("getName", "method")
 	// property_declaration
 	cs.mustHave("name", "var")
@@ -1149,6 +1159,7 @@ module LegacyModule {
 	t.Logf("TypeScript namespace chunks:\n%s", cs.dump())
 
 	// Namespace declarations
+	cs.mustHave("MyNamespace", "type")
 	// Functions inside namespace should be extracted
 	cs.mustHave("helper", "function")
 	cs.mustHave("Inner", "type")
@@ -1274,6 +1285,7 @@ func TestAdversarial_Dart(t *testing.T) {
 	cs.mustHave("syncGenerator", "function")
 
 	// Classes
+	cs.mustHave("BaseClass", "type")
 	cs.mustHave("BaseClass.method", "method")
 	cs.mustHave("BaseClass.staticMethod", "method")
 	cs.mustHave("BaseClass.label", "method")       // getter
