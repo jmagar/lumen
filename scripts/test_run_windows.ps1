@@ -4,10 +4,6 @@
 # bin/, a stub curl.bat shadows real curl via PATH, the "download" copies a
 # cross-compiled mock MCP server into place, and a real JSON-RPC initialize
 # request is piped into `run.bat stdio` with the response asserted.
-#
-# Passing proves run.bat did not fast-exit in stdio mode, reached the
-# download path, wrote the artefact where it would exec it, and invoked
-# it with stdin/stdout inherited correctly.
 
 $ErrorActionPreference = 'Stop'
 
@@ -27,6 +23,8 @@ $FakeCurlDir = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP "fakecur
 $MockBinDir  = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP "mockbin-$([guid]::NewGuid().ToString('N'))")).FullName
 
 $origPath = $env:PATH
+$buildOK  = $false
+$proc     = $null
 
 try {
     $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'amd64' }
@@ -38,25 +36,27 @@ try {
     Push-Location $RepoRoot
     try {
         $buildOutput = & go build -o $mockBin ./scripts/testdata/mock_mcp_server 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        if ($LASTEXITCODE -eq 0) {
+            $buildOK = $true
+        } else {
             Fail "could not build mock MCP server (exit $LASTEXITCODE)"
             $buildOutput | ForEach-Object { Write-Host "          $_" }
-            return
         }
     } finally {
         Pop-Location
     }
 
-    # Minimal plugin root: manifest only.
-    $manifest = '{' + "`n" + '  ".": "0.0.1"' + "`n" + '}' + "`n"
-    [IO.File]::WriteAllText((Join-Path $TmpRoot '.release-please-manifest.json'), $manifest, [Text.Encoding]::ASCII)
-    New-Item -ItemType Directory -Path (Join-Path $TmpRoot 'bin') | Out-Null
+    if ($buildOK) {
+        # Minimal plugin root: manifest only.
+        $manifest = '{' + "`n" + '  ".": "0.0.1"' + "`n" + '}' + "`n"
+        [IO.File]::WriteAllText((Join-Path $TmpRoot '.release-please-manifest.json'), $manifest, [Text.Encoding]::ASCII)
+        New-Item -ItemType Directory -Path (Join-Path $TmpRoot 'bin') | Out-Null
 
-    # Stub curl: curl.bat parses -o <target> and copies the prebuilt mock in.
-    # cmd.exe's PATHEXT search is per-directory: our fake dir is prepended
-    # to PATH and contains only curl.bat, so it wins over C:\Windows\System32
-    # regardless of PATHEXT ordering.
-    $curlStub = @'
+        # Stub curl: curl.bat parses -o <target> and copies the prebuilt mock in.
+        # cmd.exe's PATHEXT search is per-directory: our fake dir is prepended
+        # to PATH and contains only curl.bat, so it wins regardless of PATHEXT
+        # ordering (each directory is tried fully before moving to the next).
+        $curlStub = @'
 @echo off
 setlocal enabledelayedexpansion
 :loop
@@ -72,55 +72,65 @@ goto loop
 :done
 exit /b 0
 '@
-    [IO.File]::WriteAllText((Join-Path $FakeCurlDir 'curl.bat'), $curlStub, [Text.Encoding]::ASCII)
+        [IO.File]::WriteAllText((Join-Path $FakeCurlDir 'curl.bat'), $curlStub, [Text.Encoding]::ASCII)
 
-    # Write the MCP initialize request (LF-terminated) to a stdin file.
-    $initReq = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"launcher-e2e","version":"1.0"}}}'
-    $stdinFile  = Join-Path $TmpRoot 'stdin.txt'
-    $stdoutFile = Join-Path $TmpRoot 'stdout.txt'
-    $stderrFile = Join-Path $TmpRoot 'stderr.txt'
-    [IO.File]::WriteAllText($stdinFile, $initReq + "`n", [Text.Encoding]::ASCII)
+        # Launch run.bat via System.Diagnostics.Process for reliable exit-code
+        # propagation and explicit stdin/stdout/stderr wiring. Start-Process
+        # with -RedirectStandardInput is unreliable here.
+        $runBat  = Join-Path $ScriptDir 'run.bat'
+        $initReq = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"launcher-e2e","version":"1.0"}}}'
 
-    $env:CLAUDE_PLUGIN_ROOT = $TmpRoot
-    $env:LUMEN_MOCK_BINARY  = $mockBin
-    $env:PATH = "$FakeCurlDir;$origPath"
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = 'cmd.exe'
+        $psi.Arguments = "/c `"$runBat`" stdio"
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardInput  = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError  = $true
+        $psi.CreateNoWindow = $true
+        $psi.WorkingDirectory = $RepoRoot
+        $psi.Environment['CLAUDE_PLUGIN_ROOT'] = $TmpRoot
+        $psi.Environment['LUMEN_MOCK_BINARY']  = $mockBin
+        $psi.Environment['PATH'] = "$FakeCurlDir;$origPath"
 
-    $runBat = Join-Path $ScriptDir 'run.bat'
-    $proc = Start-Process -FilePath cmd.exe `
-        -ArgumentList '/c', "`"$runBat`" stdio" `
-        -RedirectStandardInput  $stdinFile `
-        -RedirectStandardOutput $stdoutFile `
-        -RedirectStandardError  $stderrFile `
-        -NoNewWindow -Wait -PassThru
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $proc.StandardInput.WriteLine($initReq)
+        $proc.StandardInput.Close()
 
-    $exitCode = $proc.ExitCode
+        $stdout = $proc.StandardOutput.ReadToEnd()
+        $stderr = $proc.StandardError.ReadToEnd()
+        if (-not $proc.WaitForExit(60000)) {
+            $proc.Kill()
+            Fail "run.bat stdio did not exit within 60s"
+        } else {
+            $exitCode = $proc.ExitCode
 
-    if ($exitCode -ne 0) {
-        Fail "run.bat stdio exited $exitCode — MCP server would be dead for the session"
-        Write-Host "        stderr:"
-        if (Test-Path $stderrFile) { Get-Content $stderrFile | ForEach-Object { Write-Host "          $_" } }
-        return
+            Write-Host "    launcher exit code: $exitCode"
+            if ($stderr) {
+                Write-Host "    launcher stderr:"
+                ($stderr -split "`r?`n") | ForEach-Object { if ($_) { Write-Host "      $_" } }
+            }
+
+            if ($exitCode -ne 0) {
+                Fail "run.bat stdio exited $exitCode — MCP server would be dead for the session"
+            } elseif (-not (Test-Path $expectedBinary)) {
+                Fail "run.bat stdio did not place artefact at $expectedBinary"
+            } elseif ($stdout -notmatch '"jsonrpc":"2\.0"') {
+                Fail "MCP initialize produced no JSON-RPC 2.0 response on stdout"
+                Write-Host "        stdout:"
+                ($stdout -split "`r?`n") | ForEach-Object { Write-Host "          $_" }
+            } elseif ($stdout -notmatch '"name":"mock-lumen"') {
+                Fail "MCP response did not come from the exec'd mock — run.bat may be swallowing stdout"
+                Write-Host "        stdout:"
+                ($stdout -split "`r?`n") | ForEach-Object { Write-Host "          $_" }
+            } else {
+                Pass "run.bat stdio downloads, execs, and brokers MCP initialize on first install"
+            }
+        }
     }
-    if (-not (Test-Path $expectedBinary)) {
-        Fail "run.bat stdio did not place artefact at $expectedBinary"
-        return
-    }
-    $stdout = if (Test-Path $stdoutFile) { Get-Content $stdoutFile -Raw } else { '' }
-    if ($stdout -notmatch '"jsonrpc":"2\.0"') {
-        Fail "MCP initialize produced no JSON-RPC 2.0 response on stdout"
-        Write-Host "        stdout:"
-        ($stdout -split "`n") | ForEach-Object { Write-Host "          $_" }
-        return
-    }
-    if ($stdout -notmatch '"name":"mock-lumen"') {
-        Fail "MCP response did not come from the exec'd mock — run.bat may be swallowing stdout"
-        Write-Host "        stdout:"
-        ($stdout -split "`n") | ForEach-Object { Write-Host "          $_" }
-        return
-    }
-    Pass "run.bat stdio downloads, execs, and brokers MCP initialize on first install"
 } finally {
     $env:PATH = $origPath
+    if ($proc -and -not $proc.HasExited) { try { $proc.Kill() } catch {} }
     Remove-Item -Recurse -Force $TmpRoot, $FakeCurlDir, $MockBinDir -ErrorAction SilentlyContinue
 }
 
