@@ -269,6 +269,61 @@ assert_eq "garbage tag"         "invalid" "$(validate_tag "not-a-version")"
 assert_eq "html fragment"       "invalid" "$(validate_tag "<html>")"
 
 echo ""
+echo "=== stdio first-install integration test ==="
+
+# End-to-end guard against the bug in #125: when the binary is missing and
+# run.sh is invoked as `run.sh stdio` (how Claude Code starts the MCP server
+# on first install), the launcher must download the binary and exec it. If
+# the stdio path fast-exits before reaching the download, the MCP server is
+# dead for the entire session because Claude Code does not retry failed MCP
+# servers. This test stubs curl so no real network call is made.
+(
+  _SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  _TMPROOT="$(mktemp -d)"
+  _FAKE_CURL_DIR="$(mktemp -d)"
+  trap 'rm -rf "$_TMPROOT" "$_FAKE_CURL_DIR"' EXIT
+
+  _OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  _ARCH_RAW="$(uname -m)"
+  case "$_ARCH_RAW" in
+    x86_64)  _ARCH="amd64" ;;
+    aarch64) _ARCH="arm64" ;;
+    *)       _ARCH="$_ARCH_RAW" ;;
+  esac
+  _EXPECTED_BINARY="${_TMPROOT}/bin/lumen-${_OS}-${_ARCH}"
+
+  printf '{\n  ".": "0.0.1"\n}\n' > "${_TMPROOT}/.release-please-manifest.json"
+  mkdir -p "${_TMPROOT}/bin"
+
+  # Stub curl: write a trivial executable to the -o target and succeed.
+  cat > "${_FAKE_CURL_DIR}/curl" <<'FAKECURL'
+#!/usr/bin/env bash
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) mkdir -p "$(dirname "$2")"; printf '#!/usr/bin/env bash\nexit 0\n' > "$2"; chmod +x "$2"; shift 2 ;;
+    *)  shift ;;
+  esac
+done
+exit 0
+FAKECURL
+  chmod +x "${_FAKE_CURL_DIR}/curl"
+
+  EXIT_CODE=0
+  CLAUDE_PLUGIN_ROOT="${_TMPROOT}" PATH="${_FAKE_CURL_DIR}:${PATH}" \
+    bash "${_SCRIPT_DIR}/run.sh" stdio >/dev/null 2>&1 || EXIT_CODE=$?
+
+  if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "  FAIL: run.sh stdio with missing binary exited $EXIT_CODE — MCP server would be dead for the session"
+    exit 1
+  fi
+  if [ ! -x "$_EXPECTED_BINARY" ]; then
+    echo "  FAIL: run.sh stdio did not download binary to ${_EXPECTED_BINARY}"
+    exit 1
+  fi
+  echo "  PASS: run.sh stdio downloads binary and execs it on first install"
+) && PASS=$((PASS + 1)) || FAIL=$((FAIL + 1))
+
+echo ""
 echo "=== summary ==="
 echo "  passed: $PASS"
 echo "  failed: $FAIL"
