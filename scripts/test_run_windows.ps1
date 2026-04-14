@@ -94,8 +94,13 @@ exit /b 0
         $psi.Environment['PATH'] = "$FakeCurlDir;$origPath"
 
         $proc = [System.Diagnostics.Process]::Start($psi)
-        $proc.StandardInput.WriteLine($initReq)
-        $proc.StandardInput.Close()
+
+        # If run.bat fast-exits in stdio mode, its stdin pipe is already
+        # closed by the time we try to write — that IS the #125 symptom,
+        # so swallow the broken-pipe exception and let the exit-code check
+        # below produce the real diagnostic.
+        try { $proc.StandardInput.WriteLine($initReq) } catch { }
+        try { $proc.StandardInput.Close() } catch { }
 
         $stdout = $proc.StandardOutput.ReadToEnd()
         $stderr = $proc.StandardError.ReadToEnd()
