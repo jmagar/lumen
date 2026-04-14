@@ -68,18 +68,27 @@ func (f *FailoverEmbedder) ActiveServerIndex() int {
 	return f.active
 }
 
+// maybeReprobe checks whether servers need (re-)initialization and does so
+// if required. Must be called with f.mu held. Returns the current active index.
+func (f *FailoverEmbedder) maybeReprobe(log bool) int {
+	needsInit := !f.checked || f.serversChanged()
+	needsReprobe := f.active < 0 && time.Since(f.lastProbeTime) >= reprobeInterval
+	if needsInit || needsReprobe {
+		if needsReprobe && log && f.logger != nil {
+			f.logger.Info("re-probing embedding servers after cooldown")
+		}
+		f.initServers()
+		f.checked = true
+	}
+	return f.active
+}
+
 // Dimensions returns dims for the active server. On first call it probes
 // servers for health to ensure the returned dimensions match the server
 // that will actually handle embeddings.
 func (f *FailoverEmbedder) Dimensions() int {
 	f.mu.Lock()
-	needsInit := !f.checked || f.serversChanged()
-	needsReprobe := f.active < 0 && time.Since(f.lastProbeTime) >= reprobeInterval
-	if needsInit || needsReprobe {
-		f.initServers()
-		f.checked = true
-	}
-	idx := f.active
+	idx := f.maybeReprobe(false)
 	f.mu.Unlock()
 	if idx < 0 {
 		idx = 0
@@ -92,13 +101,7 @@ func (f *FailoverEmbedder) Dimensions() int {
 // that will actually handle embeddings.
 func (f *FailoverEmbedder) ModelName() string {
 	f.mu.Lock()
-	needsInit := !f.checked || f.serversChanged()
-	needsReprobe := f.active < 0 && time.Since(f.lastProbeTime) >= reprobeInterval
-	if needsInit || needsReprobe {
-		f.initServers()
-		f.checked = true
-	}
-	idx := f.active
+	idx := f.maybeReprobe(false)
 	f.mu.Unlock()
 	if idx < 0 {
 		idx = 0
@@ -115,15 +118,7 @@ func (f *FailoverEmbedder) ModelName() string {
 // errors (5xx, network) it fails over to the next healthy server.
 func (f *FailoverEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	f.mu.Lock()
-	needsInit := !f.checked || f.serversChanged()
-	needsReprobe := f.active < 0 && time.Since(f.lastProbeTime) >= reprobeInterval
-	if needsInit || needsReprobe {
-		if needsReprobe && f.logger != nil {
-			f.logger.Info("re-probing embedding servers after cooldown")
-		}
-		f.initServers()
-		f.checked = true
-	}
+	f.maybeReprobe(true)
 	f.mu.Unlock()
 
 	if f.active < 0 {
