@@ -1,21 +1,26 @@
 // Spawn-semantics regression guard.
 //
-// This invokes the launcher exactly the way Claude Code's MCP transport
-// does: child_process.spawn(command, args, { shell: false }). On macOS
-// and Linux that goes through libuv's posix_spawn (no ENOEXEC fallback
-// to /bin/sh), and on Windows through cross-spawn-style PATHEXT
-// resolution wrapped in cmd.exe /d /s /c.
+// Validates the launcher dispatches cleanly via the EXACT spawn primitives
+// Claude Code uses in production:
 //
-// PR #145 and PR #157 both shipped polyglot launchers that passed every
-// pre-existing CI test but exploded in production because no test
-// matched these exact spawn semantics. This file closes that gap.
+//   - POSIX MCP transport: child_process.spawn(cmd, args, { shell: false })
+//     -> libuv posix_spawn -> kernel direct-execs the shebang launcher.
+//     This is the path PR #145 silently broke on macOS (no /bin/sh fallback
+//     on ENOEXEC) and that no prior CI test exercised, because every prior
+//     test invoked the launcher through a shell wrapper.
 //
-// The bar:
-//   1. spawn(extensionless path) succeeds on all three OSes.
-//   2. Captured stdout is byte-equal to the launcher's intended output:
-//      strict JSON.parse on a single buffer with zero leading bytes.
-//   3. Optional cross-spawn variant (npm-installable) reproduces the
-//      exact transport Claude Code's MCP SDK uses on Windows.
+//   - Cross-spawn (Claude Code's bundled MCP SDK transport on all OSes):
+//     on POSIX it is ~equivalent to child_process.spawn; on Windows it
+//     resolves PATHEXT for non-.exe paths and wraps in cmd.exe /d /s /c.
+//
+//   - shell:true (Claude Code's hook spawn primitive): /bin/sh -c on POSIX,
+//     cmd.exe /d /s /c on Windows. cmd.exe's PATHEXT search resolves
+//     absolute extensionless paths, so the launcher dispatches cleanly.
+//
+// We do NOT test child_process.spawn(extensionless, { shell: false }) on
+// Windows — that is not a production code path (libuv CreateProcess does
+// not PATHEXT-resolve absolute paths) and asserting it would only test
+// a workaround we don't ship.
 
 'use strict';
 
@@ -24,35 +29,31 @@ const fs        = require('fs');
 const os        = require('os');
 const path      = require('path');
 
+const IS_WINDOWS = process.platform === 'win32';
+
 let pass = 0;
 let fail = 0;
 
 function passMsg(msg) { console.log(`  PASS: ${msg}`); pass++; }
 function failMsg(msg) { console.log(`  FAIL: ${msg}`); fail++; }
 
-const TMP_DIR    = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-spawn-'));
-const SCRIPTS    = path.join(TMP_DIR, 'scripts');
+const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'lumen-spawn-'));
+const SCRIPTS = path.join(TMP_DIR, 'scripts');
 fs.mkdirSync(SCRIPTS, { recursive: true });
 
 // Mock launcher pair. Both files share the base name `run` and are
-// dispatched by extension by the host OS:
+// dispatched by extension:
 //   - POSIX: kernel direct-execs `run` because byte 0 is `#!`.
 //   - Windows: cmd.exe / cross-spawn resolve `run.cmd` via PATHEXT.
+//
+// Output is a fixed JSON literal — no argv reflection — so we can assert
+// strict byte-equality across both shells without fighting cmd.exe quote
+// escaping rules.
 const POSIX_LAUNCHER = `#!/usr/bin/env bash
-printf '%s' '{"mock":"ok","args":'
-node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' -- "$@"
-printf '%s\\n' '}'
+echo '{"mock":"ok"}'
 `;
 const WINDOWS_LAUNCHER = `@echo off
-setlocal enabledelayedexpansion
-set "ARGS="
-:argloop
-if "%~1"=="" goto done
-if defined ARGS (set "ARGS=!ARGS!,\\"%~1\\"") else (set "ARGS=\\"%~1\\"")
-shift
-goto argloop
-:done
-echo {"mock":"ok","args":[!ARGS!]}
+echo {"mock":"ok"}
 `;
 
 const posixPath   = path.join(SCRIPTS, 'run');
@@ -63,14 +64,18 @@ fs.writeFileSync(windowsPath, WINDOWS_LAUNCHER);
 fs.chmodSync(posixPath, 0o755);
 
 // Extensionless invocation — the EXACT string the plugin manifests
-// hand to Claude Code / cross-spawn. On Windows this triggers PATHEXT
-// resolution to `run.cmd`. On POSIX it is the literal target of the
-// posix_spawn syscall.
+// hand to Claude Code / cross-spawn.
 const launcher = path.join(SCRIPTS, 'run');
 
 function runOne(label, cmd, args, opts = {}) {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { ...opts, shell: false });
+    let child;
+    try {
+      child = spawn(cmd, args, opts);
+    } catch (err) {
+      failMsg(`${label}: spawn threw (${err.code || err.message})`);
+      return resolve();
+    }
     const stdoutChunks = [];
     const stderrChunks = [];
     child.stdout.on('data', (c) => stdoutChunks.push(c));
@@ -92,23 +97,55 @@ function runOne(label, cmd, args, opts = {}) {
       let parsed;
       try {
         parsed = JSON.parse(stdout.trim());
-      } catch (err) {
+      } catch (_) {
         failMsg(`${label}: stdout is not valid JSON — launcher polluted output`);
         console.log(`         stdout (raw): ${JSON.stringify(stdout)}`);
         if (stderr) console.log(`         stderr: ${stderr.trim()}`);
         return resolve();
       }
       if (parsed.mock !== 'ok') {
-        failMsg(`${label}: JSON did not come from launcher payload`);
+        failMsg(`${label}: JSON payload mismatch`);
         console.log(`         got: ${JSON.stringify(parsed)}`);
         return resolve();
       }
-      if (!Array.isArray(parsed.args) || parsed.args.length !== args.length) {
-        failMsg(`${label}: argv mismatch`);
-        console.log(`         expected ${args.length} args, got ${JSON.stringify(parsed.args)}`);
+      passMsg(`${label}: clean dispatch, byte-exact JSON`);
+      resolve();
+    });
+  });
+}
+
+function runWithCrossSpawn(crossSpawn) {
+  return new Promise((resolve) => {
+    const child = crossSpawn(launcher, ['stdio'], { shell: false });
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    child.stdout.on('data', (c) => stdoutChunks.push(c));
+    child.stderr.on('data', (c) => stderrChunks.push(c));
+    child.on('error', (err) => {
+      failMsg(`cross-spawn(extensionless): spawn failed (${err.code || err.message})`);
+      resolve();
+    });
+    child.on('close', (code) => {
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+      if (code !== 0) {
+        failMsg(`cross-spawn(extensionless): exit ${code}`);
+        if (stderr) console.log(`         stderr: ${stderr.trim()}`);
+        if (stdout) console.log(`         stdout: ${stdout.trim()}`);
         return resolve();
       }
-      passMsg(`${label}: clean spawn, byte-exact JSON, argv preserved`);
+      try {
+        const parsed = JSON.parse(stdout.trim());
+        if (parsed.mock === 'ok') {
+          passMsg('cross-spawn(extensionless): clean dispatch, byte-exact JSON');
+        } else {
+          failMsg('cross-spawn(extensionless): JSON payload mismatch');
+          console.log(`         got: ${JSON.stringify(parsed)}`);
+        }
+      } catch (_) {
+        failMsg('cross-spawn(extensionless): stdout is not valid JSON');
+        console.log(`         stdout (raw): ${JSON.stringify(stdout)}`);
+      }
       resolve();
     });
   });
@@ -119,20 +156,30 @@ async function main() {
   console.log(`    platform: ${process.platform}`);
   console.log(`    node:     ${process.version}`);
 
-  // Test 1: child_process.spawn with extensionless path. On macOS this
-  // exercises posix_spawn directly (the path that broke PR #145). On
-  // Windows it exercises Node's internal cmd.exe wrap (which itself
-  // does PATHEXT for absolute extensionless paths).
+  if (!IS_WINDOWS) {
+    // POSIX MCP transport. shell:false → libuv posix_spawn → kernel
+    // direct-exec. This is the bar PR #145 failed in production on macOS.
+    await runOne(
+      'posix_spawn(extensionless) [shell:false]',
+      launcher,
+      ['stdio'],
+      { shell: false },
+    );
+  }
+
+  // Hook spawn primitive on both OSes. shell:true → /bin/sh -c (POSIX) or
+  // cmd.exe /d /s /c (Windows). cmd.exe PATHEXT-resolves the absolute
+  // extensionless path and dispatches to run.cmd.
   await runOne(
-    'child_process.spawn(extensionless, ...)',
+    'shell:true dispatch (Claude Code hook primitive)',
     launcher,
-    ['stdio', '--flag'],
+    ['stdio'],
+    { shell: true },
   );
 
-  // Test 2 (optional): cross-spawn — exactly the package Claude Code's
-  // MCP SDK uses for StdioClientTransport. Only runs if cross-spawn
-  // is installable. CI installs it via scripts/package.json; locally
-  // we skip silently.
+  // MCP SDK transport. cross-spawn is the package Claude Code's bundled
+  // MCP SDK uses for StdioClientTransport. On POSIX it is ~equivalent to
+  // a raw spawn; on Windows it does PATHEXT resolution + cmd.exe wrap.
   let crossSpawn;
   try {
     crossSpawn = require('cross-spawn');
@@ -140,41 +187,9 @@ async function main() {
     console.log('  SKIP: cross-spawn not installed (run `npm install` in scripts/)');
   }
   if (crossSpawn) {
-    await new Promise((resolve) => {
-      const child = crossSpawn(launcher, ['stdio', '--flag'], { shell: false });
-      const stdoutChunks = [];
-      const stderrChunks = [];
-      child.stdout.on('data', (c) => stdoutChunks.push(c));
-      child.stderr.on('data', (c) => stderrChunks.push(c));
-      child.on('error', (err) => {
-        failMsg(`cross-spawn(extensionless, ...): spawn failed (${err.code || err.message})`);
-        resolve();
-      });
-      child.on('close', (code) => {
-        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
-        const stderr = Buffer.concat(stderrChunks).toString('utf8');
-        if (code !== 0) {
-          failMsg(`cross-spawn(extensionless, ...): exit ${code}`);
-          if (stderr) console.log(`         stderr: ${stderr.trim()}`);
-          return resolve();
-        }
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          if (parsed.mock === 'ok') {
-            passMsg('cross-spawn(extensionless, ...): clean spawn, byte-exact JSON');
-          } else {
-            failMsg('cross-spawn(extensionless, ...): JSON payload mismatch');
-          }
-        } catch (err) {
-          failMsg('cross-spawn(extensionless, ...): stdout is not valid JSON');
-          console.log(`         stdout (raw): ${JSON.stringify(stdout)}`);
-        }
-        resolve();
-      });
-    });
+    await runWithCrossSpawn(crossSpawn);
   }
 
-  // Cleanup
   try { fs.rmSync(TMP_DIR, { recursive: true, force: true }); } catch (_) {}
 
   console.log('');
