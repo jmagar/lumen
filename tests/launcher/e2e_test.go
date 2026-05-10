@@ -13,7 +13,6 @@
 package launcher
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -81,14 +80,18 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		// .cmd files on Windows are interpreted by cmd.exe. /Q suppresses the
-		// command-echo prompt that would otherwise appear on stdout for the
-		// polyglot's first two lines (which run before `@echo off` kicks in
-		// at the :batch label). /C runs the script and exits.
-		cmd = exec.CommandContext(ctx, "cmd.exe", append([]string{"/Q", "/C", launcher}, hookArgs...)...)
+		// Match how MCP hosts launch run.cmd: a fresh cmd.exe with default
+		// @echo on. The polyglot must not pollute stdout under these
+		// conditions; enforced by the strict json.Unmarshal below.
+		cmd = exec.CommandContext(ctx, "cmd.exe", append([]string{"/C", launcher}, hookArgs...)...)
 	} else {
-		// scripts/run.cmd has a #!/bin/sh shebang on POSIX; relies on +x mode.
-		cmd = exec.CommandContext(ctx, launcher, hookArgs...)
+		// Invoke via /bin/sh to match how Claude Code (Node.js libuv) spawns
+		// the hook on POSIX: libuv uses execvp, which falls back to /bin/sh
+		// on ENOEXEC for files without a shebang. Go's exec.Cmd uses execve
+		// directly (no fallback), so a bare exec.Command(launcher, ...) here
+		// would fail with "exec format error" against a polyglot that doesn't
+		// start with `#!` — even though production works fine.
+		cmd = exec.CommandContext(ctx, "/bin/sh", append([]string{launcher}, hookArgs...)...)
 	}
 	cmd.Env = append(os.Environ(),
 		"CLAUDE_PLUGIN_ROOT="+pluginRoot,
@@ -126,14 +129,13 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 			got, assetName, stderr.String())
 	}
 
-	jsonLine := lastJSONObjectLine(stdout.Bytes())
-	if jsonLine == nil {
-		t.Fatalf("no JSON object line in stdout\nstdout: %q", stdout.String())
-	}
+	// Strict parse: stdout must be exactly the JSON the hook prints. Any
+	// shell or cmd.exe pollution from the run.cmd polyglot would break this
+	// the same way it would break Claude Code's hook reader in production.
 	var hook map[string]any
-	if err := json.Unmarshal(jsonLine, &hook); err != nil {
-		t.Fatalf("stdout JSON parse: %v\nline: %q\nstdout: %q",
-			err, string(jsonLine), stdout.String())
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &hook); err != nil {
+		t.Fatalf("stdout JSON parse: %v\nstdout: %q\nstderr: %s",
+			err, stdout.String(), stderr.String())
 	}
 	spec, ok := hook["hookSpecificOutput"].(map[string]any)
 	if !ok {
@@ -143,25 +145,6 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 		t.Fatalf("hookEventName=%q, expected SessionStart\nstdout: %s",
 			name, stdout.String())
 	}
-}
-
-// lastJSONObjectLine returns the last line in stdout that looks like a JSON
-// object ('{' to '}'). Tolerates leading polyglot/cmd.exe noise that the
-// existing scripts/run.cmd emits on Windows when echo is on.
-func lastJSONObjectLine(b []byte) []byte {
-	var last []byte
-	scanner := bufio.NewScanner(bytes.NewReader(b))
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) > 1 && line[0] == '{' && line[len(line)-1] == '}' {
-			last = append(last[:0], line...)
-		}
-	}
-	if last == nil {
-		return nil
-	}
-	return last
 }
 
 // mustMkdirTempWithRetryCleanup creates a temp dir and registers a cleanup
