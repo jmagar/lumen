@@ -13,6 +13,7 @@
 package launcher
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -34,7 +35,10 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 	repoRoot := repoRoot(t)
 	version := readManifestVersion(t, filepath.Join(repoRoot, ".release-please-manifest.json"))
 
-	pluginRoot := t.TempDir()
+	// Don't use t.TempDir here: Windows holds a file lock on a freshly-
+	// exec'd .exe briefly after the process exits, and t.TempDir's strict
+	// RemoveAll cleanup turns that transient lock into a test failure.
+	pluginRoot := mustMkdirTempWithRetryCleanup(t, "lumen-plugin-root-")
 	mustCopyFile(t,
 		filepath.Join(repoRoot, ".release-please-manifest.json"),
 		filepath.Join(pluginRoot, ".release-please-manifest.json"),
@@ -77,9 +81,11 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		// .cmd files on Windows are interpreted by cmd.exe; invoke explicitly
-		// so we don't depend on Go's PATHEXT auto-wrapping.
-		cmd = exec.CommandContext(ctx, "cmd.exe", append([]string{"/c", launcher}, hookArgs...)...)
+		// .cmd files on Windows are interpreted by cmd.exe. /Q suppresses the
+		// command-echo prompt that would otherwise appear on stdout for the
+		// polyglot's first two lines (which run before `@echo off` kicks in
+		// at the :batch label). /C runs the script and exits.
+		cmd = exec.CommandContext(ctx, "cmd.exe", append([]string{"/Q", "/C", launcher}, hookArgs...)...)
 	} else {
 		// scripts/run.cmd has a #!/bin/sh shebang on POSIX; relies on +x mode.
 		cmd = exec.CommandContext(ctx, launcher, hookArgs...)
@@ -120,9 +126,14 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 			got, assetName, stderr.String())
 	}
 
+	jsonLine := lastJSONObjectLine(stdout.Bytes())
+	if jsonLine == nil {
+		t.Fatalf("no JSON object line in stdout\nstdout: %q", stdout.String())
+	}
 	var hook map[string]any
-	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &hook); err != nil {
-		t.Fatalf("stdout is not valid JSON: %v\nstdout: %q", err, stdout.String())
+	if err := json.Unmarshal(jsonLine, &hook); err != nil {
+		t.Fatalf("stdout JSON parse: %v\nline: %q\nstdout: %q",
+			err, string(jsonLine), stdout.String())
 	}
 	spec, ok := hook["hookSpecificOutput"].(map[string]any)
 	if !ok {
@@ -132,6 +143,49 @@ func TestLauncherE2E_HookSessionStart(t *testing.T) {
 		t.Fatalf("hookEventName=%q, expected SessionStart\nstdout: %s",
 			name, stdout.String())
 	}
+}
+
+// lastJSONObjectLine returns the last line in stdout that looks like a JSON
+// object ('{' to '}'). Tolerates leading polyglot/cmd.exe noise that the
+// existing scripts/run.cmd emits on Windows when echo is on.
+func lastJSONObjectLine(b []byte) []byte {
+	var last []byte
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) > 1 && line[0] == '{' && line[len(line)-1] == '}' {
+			last = append(last[:0], line...)
+		}
+	}
+	if last == nil {
+		return nil
+	}
+	return last
+}
+
+// mustMkdirTempWithRetryCleanup creates a temp dir and registers a cleanup
+// that retries removal a few times — Windows briefly holds an exclusive
+// handle on a just-exec'd .exe after the process exits, which would
+// otherwise turn cleanup into a spurious test failure.
+func mustMkdirTempWithRetryCleanup(t *testing.T, prefix string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", prefix)
+	if err != nil {
+		t.Fatalf("mkdir temp: %v", err)
+	}
+	t.Cleanup(func() {
+		var lastErr error
+		for i := 0; i < 20; i++ {
+			lastErr = os.RemoveAll(dir)
+			if lastErr == nil {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Logf("cleanup of %s failed after retries: %v", dir, lastErr)
+	})
+	return dir
 }
 
 func repoRoot(t *testing.T) string {
