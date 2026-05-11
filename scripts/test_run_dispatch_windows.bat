@@ -92,10 +92,12 @@ if "%STDERR_SIZE%"=="0" (
 set "REAL_STDOUT=%TMP_DIR%\real_stdout.txt"
 set "REAL_STDERR=%TMP_DIR%\real_stderr.txt"
 
-:: Stub: minimal env so run.cmd's preamble doesn't try to download.
-:: We don't need it to succeed — we just need the FIRST line of stdout
-:: to come from run.cmd's intentional output, never an echoed source line.
-cmd /c "%~dp0run" --version >"%REAL_STDOUT%" 2>"%REAL_STDERR%"
+:: Invoke a known-safe subcommand so the dispatch exits cleanly and we
+:: can assert both (a) exit 0 and (b) that the FIRST line of stdout is
+:: run.cmd's intentional output, never an echoed source line. Note
+:: lumen uses `version` as a subcommand — `--version` is not a flag
+:: and would return exit 1 with cobra's usage help on stderr.
+cmd /c "%~dp0run" version >"%REAL_STDOUT%" 2>"%REAL_STDERR%"
 set "REAL_EXIT=%ERRORLEVEL%"
 
 set "FIRST_CHAR="
