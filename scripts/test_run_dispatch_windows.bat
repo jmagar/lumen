@@ -96,6 +96,7 @@ set "REAL_STDERR=%TMP_DIR%\real_stderr.txt"
 :: We don't need it to succeed — we just need the FIRST line of stdout
 :: to come from run.cmd's intentional output, never an echoed source line.
 cmd /c "%~dp0run" --version >"%REAL_STDOUT%" 2>"%REAL_STDERR%"
+set "REAL_EXIT=%ERRORLEVEL%"
 
 set "FIRST_CHAR="
 for /f "usebackq delims=" %%i in ("%REAL_STDOUT%") do (
@@ -107,7 +108,14 @@ if defined FIRST_CHAR (
   if "!FIRST_CHAR:~0,1!"=="@" set "STARTS_WITH_AT=1"
 )
 
-if "!STARTS_WITH_AT!"=="1" (
+if not "!REAL_EXIT!"=="0" (
+  echo   FAIL: real run dispatch failed ^(exit !REAL_EXIT!^)
+  echo         stdout:
+  type "%REAL_STDOUT%"
+  echo         stderr:
+  type "%REAL_STDERR%"
+  set /a FAIL+=1
+) else if "!STARTS_WITH_AT!"=="1" (
   echo   FAIL: real run.cmd echoed '@echo off' to stdout
   echo         first stdout char was '@', meaning ECHO is on
   set /a FAIL+=1
