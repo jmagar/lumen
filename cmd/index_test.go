@@ -31,7 +31,7 @@ func TestRunIndex_RefusesUnindexableRoot(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected runIndex to refuse an un-indexable root, got nil error")
 	}
-	if !strings.Contains(err.Error(), ".lumenignore") {
-		t.Fatalf("expected error to mention .lumenignore, got %q", err.Error())
+	if !strings.Contains(err.Error(), ".lumenignore catch-all") {
+		t.Fatalf("expected error to mention the .lumenignore catch-all reason, got %q", err.Error())
 	}
 }

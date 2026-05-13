@@ -84,70 +84,42 @@ func TestMakeSkip_NegationPattern(t *testing.T) {
 }
 
 func TestIsRootUnindexable(t *testing.T) {
-	t.Run("no .lumenignore returns false", func(t *testing.T) {
-		dir := t.TempDir()
-		if IsRootUnindexable(dir) {
-			t.Error("expected false when no .lumenignore exists")
-		}
-	})
-
-	t.Run("empty .lumenignore returns false", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "")
-		if IsRootUnindexable(dir) {
-			t.Error("expected false for empty .lumenignore")
-		}
-	})
-
-	t.Run("specific patterns return false", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "node_modules/\n*.log\nbuild/\n")
-		if IsRootUnindexable(dir) {
-			t.Error("expected false for specific patterns")
-		}
-	})
-
-	t.Run("doublestar matches everything returns true", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "**\n")
-		if !IsRootUnindexable(dir) {
-			t.Error("expected true for ** pattern")
-		}
-	})
-
-	t.Run("doublestar-slash-star matches everything returns true", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "**/*\n")
-		if !IsRootUnindexable(dir) {
-			t.Error("expected true for **/* pattern")
-		}
-	})
-
-	t.Run("combined catch-all patterns return true", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "*\n**/**\n*/*\n**/*\n")
-		if !IsRootUnindexable(dir) {
-			t.Error("expected true for combined catch-all patterns (the user's actual $HOME case)")
-		}
-	})
-
-	t.Run("single-star alone returns true", func(t *testing.T) {
+	// .lumenignore-based scenarios: each case writes the given contents (or no
+	// file when ignoreContents is the sentinel "<no file>") to a temp dir.
+	const noFile = "<no file>"
+	lumenIgnoreCases := []struct {
+		name           string
+		ignoreContents string
+		want           bool
+		wantReason     string
+	}{
+		{"no .lumenignore", noFile, false, ""},
+		{"empty .lumenignore", "", false, ""},
+		{"specific patterns", "node_modules/\n*.log\nbuild/\n", false, ""},
+		{"doublestar matches everything", "**\n", true, ".lumenignore catch-all pattern"},
+		{"doublestar-slash-star matches everything", "**/*\n", true, ".lumenignore catch-all pattern"},
+		// The user's actual $HOME case — multiple broad patterns combined.
+		{"combined catch-all patterns", "*\n**/**\n*/*\n**/*\n", true, ".lumenignore catch-all pattern"},
 		// In gitignore semantics, a bare `*` (no `/`) matches any name at any
 		// depth — so it ignores every file in the tree. That is a catch-all.
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "*\n")
-		if !IsRootUnindexable(dir) {
-			t.Error("expected true for `*` alone (matches every file in the tree)")
-		}
-	})
-
-	t.Run("comments and blank lines do not trigger", func(t *testing.T) {
-		dir := t.TempDir()
-		writeFile(t, dir, ".lumenignore", "# comment\n\n  \n")
-		if IsRootUnindexable(dir) {
-			t.Error("expected false for whitespace/comments only")
-		}
-	})
+		{"single-star alone", "*\n", true, ".lumenignore catch-all pattern"},
+		{"comments and blank lines do not trigger", "# comment\n\n  \n", false, ""},
+	}
+	for _, tc := range lumenIgnoreCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tc.ignoreContents != noFile {
+				writeFile(t, dir, ".lumenignore", tc.ignoreContents)
+			}
+			got, reason := IsRootUnindexable(dir)
+			if got != tc.want {
+				t.Errorf("IsRootUnindexable() = %v, want %v", got, tc.want)
+			}
+			if reason != tc.wantReason {
+				t.Errorf("reason = %q, want %q", reason, tc.wantReason)
+			}
+		})
+	}
 
 	t.Run("hardcoded system paths are refused", func(t *testing.T) {
 		// These paths should always be refused as index roots, regardless of
@@ -165,8 +137,12 @@ func TestIsRootUnindexable(t *testing.T) {
 			"/Applications",
 			"/Library",
 		} {
-			if !IsRootUnindexable(p) {
+			got, reason := IsRootUnindexable(p)
+			if !got {
 				t.Errorf("expected %q to be refused as an index root", p)
+			}
+			if reason != "hardcoded system root" {
+				t.Errorf("reason for %q = %q, want %q", p, reason, "hardcoded system root")
 			}
 		}
 	})
@@ -176,8 +152,12 @@ func TestIsRootUnindexable(t *testing.T) {
 		if err != nil {
 			t.Skip("no home dir available")
 		}
-		if !IsRootUnindexable(home) {
+		got, reason := IsRootUnindexable(home)
+		if !got {
 			t.Errorf("expected %q (home) to be refused as an index root", home)
+		}
+		if reason != "user home directory" {
+			t.Errorf("reason = %q, want %q", reason, "user home directory")
 		}
 	})
 
@@ -186,7 +166,7 @@ func TestIsRootUnindexable(t *testing.T) {
 		// must still be indexable. Use the test's tempdir which is outside any
 		// hardcoded path.
 		dir := t.TempDir()
-		if IsRootUnindexable(dir) {
+		if got, _ := IsRootUnindexable(dir); got {
 			t.Errorf("expected %q to be indexable (no .lumenignore, not hardcoded)", dir)
 		}
 	})

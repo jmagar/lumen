@@ -306,6 +306,9 @@ var refusedRoots = map[string]bool{
 }
 
 // IsRootUnindexable reports whether dir is unsuitable as a Lumen index root.
+// When true, the returned string is a short human-readable reason suitable for
+// inclusion in an error message. When false, the reason is empty.
+//
 // Two checks combine:
 //
 //  1. Hardcoded refusal list — filesystem roots ($HOME, /, /Users, /tmp,
@@ -319,18 +322,18 @@ var refusedRoots = map[string]bool{
 // file, produces an empty index, and on macOS triggers TCC prompts along
 // the way. Callers (findAncestorIndex, `lumen index`) use this to refuse
 // such roots upfront.
-func IsRootUnindexable(dir string) bool {
+func IsRootUnindexable(dir string) (bool, string) {
 	clean := filepath.Clean(dir)
 	if refusedRoots[clean] {
-		return true
+		return true, "hardcoded system root"
 	}
 	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == clean {
-		return true
+		return true, "user home directory"
 	}
 
 	gi, err := ignore.CompileIgnoreFile(filepath.Join(dir, ".lumenignore"))
 	if err != nil || gi == nil {
-		return false
+		return false, ""
 	}
 	// Probe with both a root-level entry and a nested entry using long random
 	// sentinels that no realistic specific pattern would match. Patterns like
@@ -339,7 +342,10 @@ func IsRootUnindexable(dir string) bool {
 	// take as "ignores everything".
 	const probeRoot = "lumen-root-probe-X9F2K7M3"
 	const probeNested = "lumen-root-probe-X9F2K7M3/L8B4Q1P5R6N2"
-	return gi.MatchesPath(probeRoot) && gi.MatchesPath(probeNested)
+	if gi.MatchesPath(probeRoot) && gi.MatchesPath(probeNested) {
+		return true, ".lumenignore catch-all pattern"
+	}
+	return false, ""
 }
 
 // MakeSkipWithExtra is like MakeSkip but also skips directories whose relative

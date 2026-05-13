@@ -54,12 +54,13 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve path: %w", err)
 	}
 
-	// Refuse roots that have declared themselves un-indexable via .lumenignore
-	// (e.g. $HOME with a catch-all pattern). Without this, the indexer would
-	// walk the entire tree, ignore every file, produce an empty index, and on
-	// macOS trigger TCC prompts for protected folders along the way.
-	if merkle.IsRootUnindexable(projectPath) {
-		return fmt.Errorf("%s declares itself un-indexable via .lumenignore; refusing to index", projectPath)
+	// Refuse roots that have declared themselves un-indexable — either via a
+	// .lumenignore catch-all (e.g. $HOME with `**`) or via the hardcoded
+	// refusal list. Without this, the indexer would walk the entire tree,
+	// ignore every file, produce an empty index, and on macOS trigger TCC
+	// prompts for protected folders along the way.
+	if unindexable, reason := merkle.IsRootUnindexable(projectPath); unindexable {
+		return fmt.Errorf("refusing to index %s: %s", projectPath, reason)
 	}
 
 	logger, logFile := newDebugLogger()
@@ -84,6 +85,14 @@ func runIndex(cmd *cobra.Command, args []string) error {
 		projectPath = root
 	} else if ancestor := findAncestorIndex(projectPath, modelName); ancestor != "" {
 		projectPath = ancestor
+	}
+
+	// Re-check after normalization: git.RepoRoot can resolve upward to an
+	// un-indexable root (e.g. a git repo rooted at $HOME) and bypass the
+	// pre-normalization guard. findAncestorIndex already filters, but the git
+	// path does not.
+	if unindexable, reason := merkle.IsRootUnindexable(projectPath); unindexable {
+		return fmt.Errorf("refusing to index %s: %s", projectPath, reason)
 	}
 
 	// When the project directory is not a git repo, discover nested git repos
