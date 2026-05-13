@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -125,18 +126,47 @@ func TestIsRootUnindexable(t *testing.T) {
 		// These paths should always be refused as index roots, regardless of
 		// whether a .lumenignore exists. Indexing them is never the user's
 		// intent and on macOS would trigger TCC prompts.
-		for _, p := range []string{
+		//
+		// The list is platform-aware: Unix paths only assert refusal when the
+		// path exists on disk (so /Applications and /Library don't fail on
+		// Linux), and Windows paths only run on Windows.
+		unixPaths := []string{
 			"/",
 			"/Users",
+			"/home",
 			"/tmp",
 			"/private/tmp",
 			"/var",
 			"/private/var",
 			"/etc",
 			"/usr",
+			"/opt",
 			"/Applications",
 			"/Library",
-		} {
+			"/System",
+		}
+		windowsPaths := []string{
+			`C:\`,
+			`C:\Windows`,
+			`C:\Program Files`,
+			`C:\Program Files (x86)`,
+			`C:\Users`,
+			`C:\ProgramData`,
+		}
+		var paths []string
+		if runtime.GOOS == "windows" {
+			paths = windowsPaths
+		} else {
+			paths = unixPaths
+		}
+		for _, p := range paths {
+			if _, err := os.Stat(p); err != nil {
+				// Skip paths that don't exist on this host — EvalSymlinks
+				// will fail there and the fallback to filepath.Clean still
+				// catches them, but we keep the assertion focused on real
+				// roots that users could actually point lumen at.
+				continue
+			}
 			got, reason := IsRootUnindexable(p)
 			if !got {
 				t.Errorf("expected %q to be refused as an index root", p)
@@ -144,6 +174,25 @@ func TestIsRootUnindexable(t *testing.T) {
 			if reason != "hardcoded system root" {
 				t.Errorf("reason for %q = %q, want %q", p, reason, "hardcoded system root")
 			}
+		}
+	})
+
+	t.Run("symlink to home is refused", func(t *testing.T) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Skip("no home dir available")
+		}
+		linkParent := t.TempDir()
+		link := filepath.Join(linkParent, "home-symlink")
+		if err := os.Symlink(home, link); err != nil {
+			t.Skipf("symlinks unsupported on this platform: %v", err)
+		}
+		got, reason := IsRootUnindexable(link)
+		if !got {
+			t.Errorf("expected %q (symlink to home) to be refused", link)
+		}
+		if reason != "user home directory" {
+			t.Errorf("reason = %q, want %q", reason, "user home directory")
 		}
 	})
 

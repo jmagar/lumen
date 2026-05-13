@@ -292,17 +292,45 @@ func parseLinguistExcluded(path string) *ignore.GitIgnore {
 // index root regardless of configuration. Indexing them would walk huge,
 // machine-managed trees and on macOS trigger TCC prompts for protected
 // folders. The user's $HOME is added at lookup time via os.UserHomeDir.
+//
+// Entries cover Unix/macOS and Windows. Keys are compared against
+// filepath.Clean(dir), which is platform-dependent (forward slashes on
+// Unix, backslashes on Windows), so Windows entries only match on Windows
+// and vice versa — harmless to include both.
 var refusedRoots = map[string]bool{
-	"/":            true,
-	"/Users":       true,
-	"/tmp":         true,
-	"/private/tmp": true,
-	"/var":         true,
-	"/private/var": true,
-	"/etc":         true,
-	"/usr":         true,
+	// Unix / macOS
+	"/":             true,
+	"/Users":        true,
+	"/home":         true,
+	"/tmp":          true,
+	"/private/tmp":  true,
+	"/var":          true,
+	"/private/var":  true,
+	"/etc":          true,
+	"/usr":          true,
+	"/opt":          true,
 	"/Applications": true,
-	"/Library":     true,
+	"/Library":      true,
+	"/System":       true,
+	// Windows
+	`C:\`:                    true,
+	`C:\Windows`:             true,
+	`C:\Program Files`:       true,
+	`C:\Program Files (x86)`: true,
+	`C:\Users`:               true,
+	`C:\ProgramData`:         true,
+}
+
+// resolvePath returns filepath.EvalSymlinks(dir) when it succeeds, falling
+// back to filepath.Clean(dir) when it does not (e.g. dir does not exist on
+// disk, or a symlink in the chain cannot be resolved). This ensures that a
+// symlink to $HOME or a refused root is caught by IsRootUnindexable rather
+// than slipping through on the symlink path alone.
+func resolvePath(dir string) string {
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		return resolved
+	}
+	return filepath.Clean(dir)
 }
 
 // IsRootUnindexable reports whether dir is unsuitable as a Lumen index root.
@@ -323,12 +351,21 @@ var refusedRoots = map[string]bool{
 // the way. Callers (findAncestorIndex, `lumen index`) use this to refuse
 // such roots upfront.
 func IsRootUnindexable(dir string) (bool, string) {
+	// Check both the cleaned input and the symlink-resolved form against the
+	// refusal map. On macOS, /etc → /private/etc and /tmp → /private/tmp via
+	// symlinks: resolving lets a user-supplied "/private/etc" still match,
+	// while the cleaned-input check keeps "/etc" itself matching.
 	clean := filepath.Clean(dir)
-	if refusedRoots[clean] {
+	resolved := resolvePath(dir)
+	if refusedRoots[clean] || refusedRoots[resolved] {
 		return true, "hardcoded system root"
 	}
-	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == clean {
-		return true, "user home directory"
+	if home, err := os.UserHomeDir(); err == nil {
+		homeClean := filepath.Clean(home)
+		homeResolved := resolvePath(home)
+		if homeClean == clean || homeClean == resolved || homeResolved == clean || homeResolved == resolved {
+			return true, "user home directory"
+		}
 	}
 
 	gi, err := ignore.CompileIgnoreFile(filepath.Join(dir, ".lumenignore"))
