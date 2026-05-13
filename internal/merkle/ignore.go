@@ -288,6 +288,60 @@ func parseLinguistExcluded(path string) *ignore.GitIgnore {
 	return ignore.CompileIgnoreLines(patterns...)
 }
 
+// refusedRoots are filesystem roots that are never appropriate as a Lumen
+// index root regardless of configuration. Indexing them would walk huge,
+// machine-managed trees and on macOS trigger TCC prompts for protected
+// folders. The user's $HOME is added at lookup time via os.UserHomeDir.
+var refusedRoots = map[string]bool{
+	"/":            true,
+	"/Users":       true,
+	"/tmp":         true,
+	"/private/tmp": true,
+	"/var":         true,
+	"/private/var": true,
+	"/etc":         true,
+	"/usr":         true,
+	"/Applications": true,
+	"/Library":     true,
+}
+
+// IsRootUnindexable reports whether dir is unsuitable as a Lumen index root.
+// Two checks combine:
+//
+//  1. Hardcoded refusal list — filesystem roots ($HOME, /, /Users, /tmp,
+//     /var, /etc, /usr, /Applications, /Library and macOS /private/* twins)
+//     that should never be project roots regardless of user config.
+//  2. .lumenignore probe — if dir/.lumenignore contains patterns broad
+//     enough to match every file (e.g. "**", "**/*", "*"), the user has
+//     declared the directory un-indexable at its boundary.
+//
+// Without these guards the indexer walks the entire tree, ignores every
+// file, produces an empty index, and on macOS triggers TCC prompts along
+// the way. Callers (findAncestorIndex, `lumen index`) use this to refuse
+// such roots upfront.
+func IsRootUnindexable(dir string) bool {
+	clean := filepath.Clean(dir)
+	if refusedRoots[clean] {
+		return true
+	}
+	if home, err := os.UserHomeDir(); err == nil && filepath.Clean(home) == clean {
+		return true
+	}
+
+	gi, err := ignore.CompileIgnoreFile(filepath.Join(dir, ".lumenignore"))
+	if err != nil || gi == nil {
+		return false
+	}
+	// Probe with both a root-level entry and a nested entry using long random
+	// sentinels that no realistic specific pattern would match. Patterns like
+	// "*" alone match only the root probe (gitignore `*` doesn't cross `/`);
+	// patterns like "**", "**/*", "*/*" match both probes — which is what we
+	// take as "ignores everything".
+	const probeRoot = "lumen-root-probe-X9F2K7M3"
+	const probeNested = "lumen-root-probe-X9F2K7M3/L8B4Q1P5R6N2"
+	return gi.MatchesPath(probeRoot) && gi.MatchesPath(probeNested)
+}
+
 // MakeSkipWithExtra is like MakeSkip but also skips directories whose relative
 // paths are listed in extraSkipDirs. This is used to exclude git worktrees
 // that are checked out inside the project root directory.

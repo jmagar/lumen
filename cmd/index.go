@@ -29,6 +29,7 @@ import (
 	"github.com/ory/lumen/internal/git"
 	"github.com/ory/lumen/internal/index"
 	"github.com/ory/lumen/internal/indexlock"
+	"github.com/ory/lumen/internal/merkle"
 	"github.com/ory/lumen/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -48,6 +49,19 @@ var indexCmd = &cobra.Command{
 }
 
 func runIndex(cmd *cobra.Command, args []string) error {
+	projectPath, err := filepath.Abs(args[0])
+	if err != nil {
+		return fmt.Errorf("resolve path: %w", err)
+	}
+
+	// Refuse roots that have declared themselves un-indexable via .lumenignore
+	// (e.g. $HOME with a catch-all pattern). Without this, the indexer would
+	// walk the entire tree, ignore every file, produce an empty index, and on
+	// macOS trigger TCC prompts for protected folders along the way.
+	if merkle.IsRootUnindexable(projectPath) {
+		return fmt.Errorf("%s declares itself un-indexable via .lumenignore; refusing to index", projectPath)
+	}
+
 	logger, logFile := newDebugLogger()
 	if logFile != nil {
 		defer func() { _ = logFile.Close() }()
@@ -60,11 +74,6 @@ func runIndex(cmd *cobra.Command, args []string) error {
 
 	emb := newEmbedder(cfg)
 	emb.SetLogger(logger)
-
-	projectPath, err := filepath.Abs(args[0])
-	if err != nil {
-		return fmt.Errorf("resolve path: %w", err)
-	}
 
 	modelName := emb.ModelName()
 
