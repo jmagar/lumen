@@ -128,7 +128,7 @@ const backgroundReindexMaxDuration = 10 * time.Minute
 // produce a fresh index synchronously (background indexer holds the flock,
 // in-process goroutine is already running, or reindex timed out). The text
 // is identical across all four code paths.
-const staleIndexWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+const staleIndexWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use grep/glob/find for code search until indexing finishes (usually a few minutes; longer for large repositories)."
 
 type cacheEntry struct {
 	idx           *index.Indexer
