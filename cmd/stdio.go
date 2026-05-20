@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -128,6 +129,14 @@ const defaultSearchTimeout = 20 * time.Second
 // (cold-start GPU, network drop, server crash mid-request) producing the
 // 10-minute HTTP client wait visible as a hang in Claude Code.
 const defaultEmbedTimeout = 20 * time.Second
+
+// defaultStaleEmbedTimeout bounds embedQuery when ensureIndexed has already
+// indicated the index is being rebuilt. The embedding backend may be
+// saturated by the concurrent indexer's batches; we give it a short window
+// to respond (preserves stale results when fast) and fall back to
+// warning-only when slow.
+const defaultStaleEmbedTimeout = 3 * time.Second
+
 const backgroundReindexMaxDuration = 10 * time.Minute
 
 // staleIndexWarning is returned to the caller whenever ensureIndexed cannot
@@ -181,21 +190,22 @@ func (ic *indexerCache) cacheSet(projectPath, model string, entry cacheEntry) {
 // indexerCache manages one *index.Indexer per project path, creating them
 // lazily with a shared embedder.
 type indexerCache struct {
-	mu              sync.RWMutex
-	cache           map[string]cacheEntry
-	reindexing      map[string]bool // projects with an active background reindex goroutine
-	embedder        embedder.Embedder
-	cfg             *config.ConfigService
-	freshnessTTL    time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultFreshnessTTL
-	reindexTimeout  time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultReindexTimeout
-	embedTimeout    time.Duration                                                                                                            // override for tests; 0 means defaultEmbedTimeout
-	findDonorFunc   func(string, string) string                                                                                              // nil uses config.FindDonorIndex
-	seedFunc        func(string, string) (bool, error)                                                                                       // nil uses index.SeedFromDonor
-	ensureFreshFunc func(ctx context.Context, idx *index.Indexer, projectDir string, progress index.ProgressFunc) (bool, index.Stats, error) // nil uses idx.EnsureFresh
-	log             *slog.Logger
-	wg              sync.WaitGroup     // tracks background reindex goroutines
-	closeCtx        context.Context    // cancelled by Close() to signal background goroutines
-	closeFn         context.CancelFunc // cancels closeCtx
+	mu                sync.RWMutex
+	cache             map[string]cacheEntry
+	reindexing        map[string]bool // projects with an active background reindex goroutine
+	embedder          embedder.Embedder
+	cfg               *config.ConfigService
+	freshnessTTL      time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultFreshnessTTL
+	reindexTimeout    time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultReindexTimeout
+	embedTimeout      time.Duration                                                                                                            // override for tests; 0 means defaultEmbedTimeout
+	staleEmbedTimeout time.Duration                                                                                                            // override for tests; 0 means defaultStaleEmbedTimeout
+	findDonorFunc     func(string, string) string                                                                                              // nil uses config.FindDonorIndex
+	seedFunc          func(string, string) (bool, error)                                                                                       // nil uses index.SeedFromDonor
+	ensureFreshFunc   func(ctx context.Context, idx *index.Indexer, projectDir string, progress index.ProgressFunc) (bool, index.Stats, error) // nil uses idx.EnsureFresh
+	log               *slog.Logger
+	wg                sync.WaitGroup     // tracks background reindex goroutines
+	closeCtx          context.Context    // cancelled by Close() to signal background goroutines
+	closeFn           context.CancelFunc // cancels closeCtx
 }
 
 // getFreshnessTTL returns the effective freshness TTL, checking the override
@@ -233,6 +243,17 @@ func (ic *indexerCache) getEmbedTimeout() time.Duration {
 		return ic.embedTimeout
 	}
 	return defaultEmbedTimeout
+}
+
+// getStaleEmbedTimeout returns the embed timeout used when StaleWarning is
+// set — typically much shorter than the normal embed timeout so the call
+// returns quickly even when the embedding backend is saturated by the
+// concurrent indexer.
+func (ic *indexerCache) getStaleEmbedTimeout() time.Duration {
+	if ic.staleEmbedTimeout != 0 {
+		return ic.staleEmbedTimeout
+	}
+	return defaultStaleEmbedTimeout
 }
 
 // logger returns ic.log, falling back to a discarding logger when the field
@@ -559,24 +580,34 @@ func (ic *indexerCache) handleSemanticSearch(ctx context.Context, req *mcp.CallT
 	}
 	out.SeedWarning = seedWarning
 
-	// When the index is being rebuilt by a concurrent indexer, the
-	// StaleWarning text already instructs the caller to skip semantic_search
-	// for the next 10 tool calls. Embedding and searching now would (a) waste
-	// work the caller is told to ignore, and (b) contend with the busy
-	// indexer for the embedding backend — on a single-instance LM Studio,
-	// the query embed can queue behind the indexer's batches indefinitely
-	// and hang the MCP call. Return the warning immediately instead.
+	// Bound embedQuery so a slow or saturated embedding backend cannot hang
+	// the MCP call. Two regimes:
+	//   - StaleWarning set: a concurrent indexer is hammering the embedding
+	//     server. Give the embed a short window; if it succeeds, return the
+	//     stale-but-real results along with the warning. If it times out,
+	//     return warning-only — the caller is already told to fall back.
+	//   - StaleWarning empty: defense-in-depth. Bound at defaultEmbedTimeout
+	//     so any embedder pathology (cold-start GPU, network drop, server
+	//     crash mid-request) surfaces as a quick error rather than the
+	//     10-minute HTTP client timeout.
+	embedTimeout := ic.getEmbedTimeout()
 	if out.StaleWarning != "" {
-		text := formatSearchResults(input.Path, out)
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: text}},
-		}, nil, nil
+		embedTimeout = ic.getStaleEmbedTimeout()
 	}
-
-	embedCtx, embedCancel := context.WithTimeout(ctx, ic.getEmbedTimeout())
+	embedCtx, embedCancel := context.WithTimeout(ctx, embedTimeout)
 	queryVec, err := ic.embedQuery(embedCtx, input.Query)
 	embedCancel()
 	if err != nil {
+		if out.StaleWarning != "" && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			ic.logger().Info("stale embed fast-fail: returning warning-only",
+				"project", effectiveRoot,
+				"timeout", embedTimeout,
+			)
+			text := formatSearchResults(input.Path, out)
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: text}},
+			}, nil, nil
+		}
 		return nil, nil, err
 	}
 
