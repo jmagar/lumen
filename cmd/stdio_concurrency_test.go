@@ -488,3 +488,85 @@ func writeTestGoFile(t *testing.T, dir, name, content string) {
 		t.Fatal(err)
 	}
 }
+
+// TestHandleSemanticSearch_EmbedQueryBounded verifies defense-in-depth: even
+// when no StaleWarning is set (no concurrent indexer), a slow embedder must
+// not be able to hang the MCP call past defaultEmbedTimeout. The underlying
+// http.Client timeout is 10 minutes, which is effectively a hang from
+// Claude Code's perspective.
+func TestHandleSemanticSearch_EmbedQueryBounded(t *testing.T) {
+	const dims = 4
+
+	rawDir := t.TempDir()
+	projectDir, err := filepath.EvalSymlinks(rawDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeTestGoFile(t, projectDir, "main.go", `package main
+
+func Demo() {}
+`)
+
+	fastEmb := &stubEmbedder{model: "blocking-stub"}
+	dbPath := config.DBPathForProject(projectDir, fastEmb.ModelName())
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Dir(dbPath)) })
+
+	idx, err := index.NewIndexer(dbPath, fastEmb, 512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := idx.Index(context.Background(), projectDir, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	_ = idx.Close()
+
+	// Re-open with a blocking embedder. No flock held — so StaleWarning will
+	// be empty and the short-circuit / fast-fail path does NOT trigger; this
+	// exercises the pure defense-in-depth bound.
+	blockEmb := newBlockingStubEmbedder(dims)
+	idx, err = index.NewIndexer(dbPath, blockEmb, 512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		blockEmb.Unblock()
+		_ = idx.Close()
+	}()
+
+	ic := &indexerCache{
+		cache: map[string]cacheEntry{
+			projectDir: {idx: idx, effectiveRoot: projectDir, model: blockEmb.ModelName(), lastCheckedAt: time.Now()},
+		},
+		embedder:     blockEmb,
+		cfg:          newTestConfigService(t, 512),
+		log:          discardLog,
+		freshnessTTL: 1 * time.Hour,         // skip merkle path so StaleWarning stays empty
+		embedTimeout: 500 * time.Millisecond, // tight bound so the test exercises the limit in <1s
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	req := &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{}}
+	_, _, callErr := ic.handleSemanticSearch(ctx, req, SemanticSearchInput{
+		Cwd:   projectDir,
+		Path:  projectDir,
+		Query: "demo",
+		Limit: 3,
+	})
+	elapsed := time.Since(start)
+
+	if callErr == nil {
+		t.Fatalf("expected timeout error, got nil (elapsed %v)", elapsed)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("handleSemanticSearch took %v — expected ~embedTimeout (500ms), not the 10-minute HTTP timeout", elapsed)
+	}
+	if !strings.Contains(callErr.Error(), "embed query") {
+		t.Fatalf("expected 'embed query' in error, got: %v", callErr)
+	}
+}

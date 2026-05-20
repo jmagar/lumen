@@ -122,6 +122,12 @@ type HealthCheckOutput struct {
 const defaultFreshnessTTL = 30 * time.Second
 const defaultReindexTimeout = 15 * time.Second
 const defaultSearchTimeout = 20 * time.Second
+
+// defaultEmbedTimeout bounds the per-call embed for a semantic_search query.
+// Mirrors defaultSearchTimeout: protects against any embedder slowness
+// (cold-start GPU, network drop, server crash mid-request) producing the
+// 10-minute HTTP client wait visible as a hang in Claude Code.
+const defaultEmbedTimeout = 20 * time.Second
 const backgroundReindexMaxDuration = 10 * time.Minute
 
 // staleIndexWarning is returned to the caller whenever ensureIndexed cannot
@@ -182,6 +188,7 @@ type indexerCache struct {
 	cfg             *config.ConfigService
 	freshnessTTL    time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultFreshnessTTL
 	reindexTimeout  time.Duration                                                                                                            // override for tests; 0 reads from cfg, then defaultReindexTimeout
+	embedTimeout    time.Duration                                                                                                            // override for tests; 0 means defaultEmbedTimeout
 	findDonorFunc   func(string, string) string                                                                                              // nil uses config.FindDonorIndex
 	seedFunc        func(string, string) (bool, error)                                                                                       // nil uses index.SeedFromDonor
 	ensureFreshFunc func(ctx context.Context, idx *index.Indexer, projectDir string, progress index.ProgressFunc) (bool, index.Stats, error) // nil uses idx.EnsureFresh
@@ -217,6 +224,15 @@ func (ic *indexerCache) getReindexTimeout() time.Duration {
 		}
 	}
 	return defaultReindexTimeout
+}
+
+// getEmbedTimeout returns the effective embed timeout, checking the override
+// field first then falling back to defaultEmbedTimeout.
+func (ic *indexerCache) getEmbedTimeout() time.Duration {
+	if ic.embedTimeout != 0 {
+		return ic.embedTimeout
+	}
+	return defaultEmbedTimeout
 }
 
 // logger returns ic.log, falling back to a discarding logger when the field
@@ -557,7 +573,9 @@ func (ic *indexerCache) handleSemanticSearch(ctx context.Context, req *mcp.CallT
 		}, nil, nil
 	}
 
-	queryVec, err := ic.embedQuery(ctx, input.Query)
+	embedCtx, embedCancel := context.WithTimeout(ctx, ic.getEmbedTimeout())
+	queryVec, err := ic.embedQuery(embedCtx, input.Query)
+	embedCancel()
 	if err != nil {
 		return nil, nil, err
 	}
