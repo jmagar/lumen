@@ -124,6 +124,12 @@ const defaultReindexTimeout = 15 * time.Second
 const defaultSearchTimeout = 20 * time.Second
 const backgroundReindexMaxDuration = 10 * time.Minute
 
+// staleIndexWarning is returned to the caller whenever ensureIndexed cannot
+// produce a fresh index synchronously (background indexer holds the flock,
+// in-process goroutine is already running, or reindex timed out). The text
+// is identical across all four code paths.
+const staleIndexWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+
 type cacheEntry struct {
 	idx           *index.Indexer
 	effectiveRoot string
@@ -725,7 +731,7 @@ func (ic *indexerCache) ensureIndexed(idx *index.Indexer, input SemanticSearchIn
 	// worst case is redundant work, not corruption (SQLite WAL mode).
 	if indexlock.IsHeld(indexlock.LockPathForDB(dbPath)) {
 		ic.logger().Info("skipping reindex: background indexer is running", "project", projectDir)
-		out.StaleWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+		out.StaleWarning = staleIndexWarning
 		return out, nil
 	}
 
@@ -741,7 +747,7 @@ func (ic *indexerCache) ensureIndexed(idx *index.Indexer, input SemanticSearchIn
 	if ic.reindexing != nil && ic.reindexing[reindexKey] {
 		ic.mu.Unlock()
 		ic.logger().Debug("skipping reindex: in-process background goroutine already running", "project", projectDir)
-		out.StaleWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+		out.StaleWarning = staleIndexWarning
 		return out, nil
 	}
 	if ic.reindexing == nil {
@@ -833,7 +839,7 @@ func (ic *indexerCache) ensureIndexed(idx *index.Indexer, input SemanticSearchIn
 		bgCancel() // release context resources early
 		if result.skipped {
 			ic.logger().Info("reindex skipped: lock held by another process", "project", projectDir)
-			out.StaleWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+			out.StaleWarning = staleIndexWarning
 			return out, nil
 		}
 		if result.err != nil {
@@ -874,7 +880,7 @@ func (ic *indexerCache) ensureIndexed(idx *index.Indexer, input SemanticSearchIn
 			"project", projectDir,
 			"timeout", timeout,
 		)
-		out.StaleWarning = "Index is being updated in the background. Results may be incomplete or outdated. Use standard tools for the next 10 tool calls before trying semantic_search again."
+		out.StaleWarning = staleIndexWarning
 		return out, nil
 	}
 }
