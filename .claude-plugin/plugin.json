@@ -1,6 +1,6 @@
 {
   "name": "lumen",
-  "description": "Precise local semantic code search via MCP. Indexes your codebase with Go AST parsing, embeds with Ollama or LM Studio, and exposes vector search to Claude through an MCP server — no cloud, no npm.",
+  "description": "Precise local semantic code search via MCP. Indexes your codebase with Go AST parsing, embeds with Ollama, LM Studio, or HuggingFace TEI, and exposes vector search to Claude through an MCP server — no cloud, no npm.",
   "author": {
     "name": "Ory Corp",
     "url": "https://github.com/ory"
@@ -16,12 +16,39 @@
     "ollama",
     "rag"
   ],
+  "userConfig": {
+    "backend": {
+      "type": "string",
+      "title": "Embedding backend",
+      "description": "Embedding backend to use: ollama, lmstudio, or tei",
+      "default": "tei"
+    },
+    "host": {
+      "type": "string",
+      "title": "Server host URL",
+      "description": "URL of your embedding server (e.g. http://localhost:52000 for TEI, http://localhost:11434 for Ollama)",
+      "default": "http://localhost:52000"
+    },
+    "model": {
+      "type": "string",
+      "title": "Embedding model",
+      "description": "Model name for embeddings (must match what your server has loaded)",
+      "default": "Qwen/Qwen3-Embedding-0.6B"
+    }
+  },
   "mcpServers": {
     "lumen": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/run",
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/lumen",
       "args": [
         "stdio"
-      ]
+      ],
+      "env": {
+        "LUMEN_BACKEND": "${user_config.backend}",
+        "OLLAMA_HOST": "${user_config.host}",
+        "LM_STUDIO_HOST": "${user_config.host}",
+        "TEI_HOST": "${user_config.host}",
+        "LUMEN_EMBED_MODEL": "${user_config.model}"
+      }
     }
   }
 }
