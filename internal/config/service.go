@@ -50,6 +50,12 @@ func defaultServerForBackend(backend string) ServerConfig {
 			Host:    "http://localhost:1234",
 			Model:   models.DefaultLMStudioModel,
 		}
+	case BackendTEI:
+		return ServerConfig{
+			Backend: BackendTEI,
+			Host:    "http://localhost:80",
+			Model:   models.DefaultTEIModel,
+		}
 	default:
 		return ServerConfig{
 			Backend: BackendOllama,
@@ -231,9 +237,10 @@ func applyEnvOverrides(k *koanf.Koanf) {
 	ctx := os.Getenv("LUMEN_EMBED_CTX")
 	ollamaHost := os.Getenv("OLLAMA_HOST")
 	lmStudioHost := os.Getenv("LM_STUDIO_HOST")
+	teiHost := os.Getenv("TEI_HOST")
 
 	// Only apply if at least one server env var is explicitly set
-	hasOverride := backendEnv != "" || model != "" || dims != "" || ctx != "" || ollamaHost != "" || lmStudioHost != ""
+	hasOverride := backendEnv != "" || model != "" || dims != "" || ctx != "" || ollamaHost != "" || lmStudioHost != "" || teiHost != ""
 	if !hasOverride {
 		return
 	}
@@ -267,6 +274,10 @@ func applyEnvOverrides(k *koanf.Koanf) {
 	case BackendLMStudio:
 		if lmStudioHost != "" {
 			srv.Host = lmStudioHost
+		}
+	case BackendTEI:
+		if teiHost != "" {
+			srv.Host = teiHost
 		}
 	default:
 		if ollamaHost != "" {
@@ -437,7 +448,7 @@ func (s *ConfigService) validate() error {
 		if srv.Backend == "" {
 			return fmt.Errorf("config: servers[%d]: backend is required", i)
 		}
-		if srv.Backend != BackendOllama && srv.Backend != BackendLMStudio {
+		if srv.Backend != BackendOllama && srv.Backend != BackendLMStudio && srv.Backend != BackendTEI {
 			return fmt.Errorf("config: servers[%d]: unknown backend %q", i, srv.Backend)
 		}
 		if srv.Model == "" {

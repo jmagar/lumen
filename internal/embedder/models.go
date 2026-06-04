@@ -24,6 +24,7 @@ var (
 	ModelAliases           = models.ModelAliases
 	DefaultOllamaModel     = models.DefaultOllamaModel
 	DefaultLMStudioModel   = models.DefaultLMStudioModel
+	DefaultTEIModel        = models.DefaultTEIModel
 	DefaultModel           = models.DefaultModel
 	DefaultMinScore        = models.DefaultMinScore
 	DimensionAwareMinScore = models.DimensionAwareMinScore

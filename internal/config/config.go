@@ -27,6 +27,9 @@ const (
 	BackendOllama = "ollama"
 	// BackendLMStudio is the backend identifier for LM Studio.
 	BackendLMStudio = "lmstudio"
+	// BackendTEI is the backend identifier for HuggingFace Text Embeddings Inference.
+	// TEI exposes the same OpenAI-compatible /v1/embeddings endpoint as LM Studio.
+	BackendTEI = "tei"
 )
 
 // DBPathForProject returns the SQLite database path for a given project,

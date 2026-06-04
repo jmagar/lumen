@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "lumen",
+  "owner": {
+    "name": "ory",
+    "email": "hi@ory.sh"
+  },
+  "description": "Lumen semantic code search plugin for Claude Code.",
+  "plugins": [
+    {
+      "name": "lumen",
+      "source": ".",
+      "description": "Precise local semantic code search via MCP. Indexes your codebase with Go AST parsing and vector embeddings."
+    }
+  ]
+}

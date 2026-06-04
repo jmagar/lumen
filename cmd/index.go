@@ -195,9 +195,9 @@ func loadConfigWithFlags(cmd *cobra.Command) (*config.ConfigService, error) {
 	if model == "" && backend == "" {
 		return config.NewConfigService(path)
 	}
-	if backend != "" && backend != config.BackendOllama && backend != config.BackendLMStudio {
-		return nil, fmt.Errorf("unknown backend %q (must be %q or %q)",
-			backend, config.BackendOllama, config.BackendLMStudio)
+	if backend != "" && backend != config.BackendOllama && backend != config.BackendLMStudio && backend != config.BackendTEI {
+		return nil, fmt.Errorf("unknown backend %q (must be %q, %q, or %q)",
+			backend, config.BackendOllama, config.BackendLMStudio, config.BackendTEI)
 	}
 
 	cfg, selErr := config.NewConfigService(path, config.WithServerSelection(model, backend))

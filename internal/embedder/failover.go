@@ -243,8 +243,11 @@ func (f *FailoverEmbedder) probeHealth(i int) bool {
 	}
 	srv := servers[i]
 	endpoint := srv.Host + "/"
-	if srv.Backend == "lmstudio" {
+	switch srv.Backend {
+	case "lmstudio":
 		endpoint = srv.Host + "/v1/models"
+	case "tei":
+		endpoint = srv.Host + "/health"
 	}
 	client := &http.Client{Timeout: healthCheckTimeout}
 	resp, err := client.Get(endpoint)
@@ -280,7 +283,7 @@ func (f *FailoverEmbedder) ensureEmbedder(i int) error {
 	switch srv.Backend {
 	case "ollama":
 		emb, err = NewOllama(srv.Model, dims, ctxLen, srv.Host)
-	case "lmstudio":
+	case "lmstudio", "tei":
 		emb, err = NewLMStudio(srv.Model, dims, srv.Host)
 	default:
 		return fmt.Errorf("unknown backend %q", srv.Backend)

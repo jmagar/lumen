@@ -1062,8 +1062,11 @@ func (ic *indexerCache) handleHealthCheck(ctx context.Context, _ *mcp.CallToolRe
 	host := srv.Host
 	model := srv.Model
 	probeURL := host + "/api/tags"
-	if backend == config.BackendLMStudio {
+	switch backend {
+	case config.BackendLMStudio:
 		probeURL = host + "/v1/models"
+	case config.BackendTEI:
+		probeURL = host + "/health"
 	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
