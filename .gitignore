@@ -1,5 +1,5 @@
 # Build output
-bin/
+bin/lumen-*
 dist/
 ./lumen
 
@@ -14,11 +14,6 @@ dist/
 # Claude
 **/.claude/*.local.json
 .worktrees/
-
-lumen
-!plugins/
-!plugins/lumen/
-!plugins/lumen/**
 
 bench-swe/bench-swe
 bench-swe/overview.txt
