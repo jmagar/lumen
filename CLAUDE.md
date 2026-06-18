@@ -18,6 +18,15 @@ Do not add a repo-root `.mcp.json` or repo-root `.codex-plugin/`. Claude Code
 reads repo-root `.mcp.json` as project-scoped MCP config, which would change
 runtime behavior for this repository outside the Claude plugin install path.
 
+## Long-Lived Branches
+
+- `marketplace-no-mcp` is an intentional long-lived marketplace variant branch,
+  not stale cleanup. It keeps Lumen's plugin/skill surface available while
+  removing bundled MCP server registration for environments where the MCP server
+  is already provided through the Labby gateway.
+- Do not merge `marketplace-no-mcp` into `main` by default, and do not delete it
+  as stale unless Jacob explicitly retires the no-MCP marketplace variant.
+
 ## Go Standards
 
 - **Version**: Go 1.25+
