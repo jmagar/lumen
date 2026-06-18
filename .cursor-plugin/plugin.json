@@ -19,6 +19,5 @@
     "rag"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks-cursor.json",
-  "mcpServers": "./.cursor/mcp.json"
+  "hooks": "./hooks/hooks-cursor.json"
 }

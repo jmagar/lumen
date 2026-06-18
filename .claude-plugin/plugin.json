@@ -1,7 +1,7 @@
 {
   "name": "lumen",
   "version": "0.0.41",
-  "description": "Precise local semantic code search via MCP. Indexes your codebase with Go AST parsing, embeds with Ollama or LM Studio, and exposes vector search to Claude through an MCP server — no cloud, no npm.",
+  "description": "Precise local semantic code search via the configured gateway. Indexes your codebase with Go AST parsing, embeds with Ollama or LM Studio, and exposes vector search to Claude through an MCP server — no cloud, no npm.",
   "author": {
     "name": "Ory Corp",
     "url": "https://github.com/ory"
@@ -16,13 +16,5 @@
     "embeddings",
     "ollama",
     "rag"
-  ],
-  "mcpServers": {
-    "lumen": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/run",
-      "args": [
-        "stdio"
-      ]
-    }
-  }
+  ]
 }
