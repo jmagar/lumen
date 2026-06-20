@@ -8,15 +8,15 @@ efficiently detect changes and minimize re-indexing.
 This repository keeps all agent integration surfaces at the repo root:
 
 - Claude Code plugin files under `.claude-plugin/`
-- Codex install docs under `.codex/`
+- Codex plugin metadata under `.codex-plugin/` and install docs under `.codex/`
 - Cursor plugin files under `.cursor-plugin/`
 - OpenCode plugin files under `.opencode/`
 - Shared hooks, skills, MCP wiring, and launchers under `hooks/`, `skills/`,
   `mcp.json`, and `scripts/`
 
-Do not add a repo-root `.mcp.json` or repo-root `.codex-plugin/`. Claude Code
-reads repo-root `.mcp.json` as project-scoped MCP config, which would change
-runtime behavior for this repository outside the Claude plugin install path.
+Do not add a repo-root `.mcp.json`. Claude Code reads repo-root `.mcp.json` as
+project-scoped MCP config, which would change runtime behavior for this
+repository outside the Claude plugin install path.
 
 ## Go Standards
 
@@ -118,8 +118,8 @@ system handles MCP registration, hooks, and skills declaratively via:
 - `skills/` — `/lumen:doctor` and `/lumen:reindex` skills
 
 Codex, Cursor, and OpenCode reuse the same repo-root `skills/`, `hooks/`, and
-`scripts/` surfaces. Their install-specific entrypoints live in `.codex/`,
-`.cursor-plugin/`, `.opencode/`, and `mcp.json`.
+`scripts/` surfaces. Their install-specific entrypoints live in
+`.codex-plugin/`, `.codex/`, `.cursor-plugin/`, `.opencode/`, and `mcp.json`.
 
 ## Environment Variables
 

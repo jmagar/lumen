@@ -1,0 +1,37 @@
+{
+  "name": "lumen",
+  "version": "0.0.41",
+  "description": "Precise local semantic code search via the configured gateway. Installs Lumen skills for Codex while relying on the Labby gateway for MCP tools in the no-MCP marketplace variant.",
+  "author": {
+    "name": "Ory Corp",
+    "url": "https://github.com/ory"
+  },
+  "homepage": "https://github.com/ory/lumen",
+  "repository": "https://github.com/ory/lumen",
+  "license": "Apache-2.0",
+  "keywords": [
+    "semantic-search",
+    "code-index",
+    "mcp",
+    "embeddings",
+    "ollama",
+    "rag"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Lumen",
+    "shortDescription": "Precise local semantic code search over your indexed codebase.",
+    "longDescription": "Lumen indexes a codebase with Go AST parsing and vector embeddings, then exposes fast semantic code search through the configured MCP gateway.",
+    "developerName": "Ory Corp",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Use Lumen to find where this behavior is implemented.",
+      "Semantic-search the codebase for auth handling.",
+      "Locate the code that builds the catalog."
+    ],
+    "brandColor": "#38BDF8"
+  }
+}

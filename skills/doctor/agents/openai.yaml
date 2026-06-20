@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lumen Doctor"
+  short_description: "Check the configured Lumen semantic-search gateway, embedding backend, and current project index status."
+  default_prompt: "Use $lumen:doctor to verify Lumen health, embedding backend reachability, and index freshness for the current project."

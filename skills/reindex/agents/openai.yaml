@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lumen Reindex"
+  short_description: "Refresh or rebuild the Lumen semantic-search index for the current project."
+  default_prompt: "Use $lumen:reindex to refresh the current project's Lumen index or perform an explicit clean rebuild."
