@@ -6,5 +6,3 @@ docs/plans linguist-generated
 # core.autocrlf setting.
 *.bat text eol=crlf
 *.cmd text eol=crlf
-bin/lumen filter=lfs diff=lfs merge=lfs -text
-bin/lumen-* filter=lfs diff=lfs merge=lfs -text
