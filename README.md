@@ -32,26 +32,102 @@ run yourself.
 | Svelte (chat-ui)       | **$0.10, 56s** (-26%, -31%)   | $0.14, 80s           |
 | Patch quality          | **Maintained in all 9 tasks** | —                    |
 
-## Table of contents
+**30-second path:** install Lumen for your agent host -> start a local embedding
+server -> call `semantic_search` before falling back to raw file reads.
+
+**Status:** production local semantic code search MCP server and CLI. Indexing
+and search are local-first; benchmark claims are reproducible through the
+checked-in bench-swe harness.
+
+**Not for:** hosted RAG, remote multi-tenant code search, replacing a language
+server, indexing secrets intentionally, or bypassing source control and local
+filesystem permissions.
+
+## Contents
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+- [Naming](#naming)
+- [Capabilities And Boundaries](#capabilities-and-boundaries)
+- [Install](#install)
 - [Demo](#demo)
-- [Quick start](#quick-start)
+- [Quickstart](#quickstart)
+- [Client Configuration](#client-configuration)
+- [Runtime Surfaces](#runtime-surfaces)
+- [MCP Tool Reference](#mcp-tool-reference)
+- [Authentication](#authentication)
+- [Safety And Trust Model](#safety-and-trust-model)
+- [Architecture](#architecture)
 - [What you get](#what-you-get)
-- [How it works](#how-it-works)
 - [Benchmarks](#benchmarks)
 - [Supported languages](#supported-languages)
 - [Configuration](#configuration)
   - [Supported embedding models](#supported-embedding-models)
+  - [Selecting a server per invocation](#selecting-a-server-per-invocation)
+  - [Using a custom or unlisted model](#using-a-custom-or-unlisted-model)
 - [Controlling what gets indexed](#controlling-what-gets-indexed)
 - [Database location](#database-location)
 - [CLI Reference](#cli-reference)
+- [Distribution Contract](#distribution-contract)
+- [Verification](#verification)
+- [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [Related Servers](#related-servers)
+- [Documentation](#documentation)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Naming
+
+| Surface | This repo |
+| --- | --- |
+| Repository | `lumen` |
+| CLI / binary | `lumen` |
+| OpenCode package | `@ory/lumen-opencode` |
+| MCP tools | `semantic_search`, `health_check`, `index_status` |
+| Shared skills | `doctor`, `reindex` |
+| Env prefix | `LUMEN_*`, plus backend-specific `OLLAMA_HOST`, `LM_STUDIO_HOST`, and `TEI_HOST` |
+
+This repo is a guide exception: it is a Go MCP server and CLI, not an RMCP Rust
+wrapper. The README still follows the same operator invariants: first safe
+search, clear local credential boundaries, curated-vs-generated docs, and
+distribution/runtime honesty.
+
+## Capabilities And Boundaries
+
+- Builds local semantic indexes with Go AST and tree-sitter chunking.
+- Stores vectors in local SQLite/sqlite-vec databases outside the target repo.
+- Auto-indexes or refreshes stale indexes before searches.
+- Exposes MCP tools for semantic search, health checks, and index status.
+- Ships host integrations for Claude Code, Cursor, Codex, and OpenCode.
+- Provides reusable `doctor` and `reindex` skills.
+
+| This repo owns | Embedding backend owns | Explicitly out of scope |
+| --- | --- | --- |
+| File discovery, chunking, Merkle freshness checks, local vector store, MCP tool responses, CLI commands, plugin launchers. | Embedding inference, model availability, GPU/CPU performance, backend auth/network reachability. | Hosted search, secret scanning, remote tenancy, language-server diagnostics, arbitrary file mutation, cloud indexing. |
+
+## Install
+
+The quickest install path depends on the agent host:
+
+- Claude Code: install `lumen@ory` from the Ory plugin marketplace.
+- Cursor: use the checked-in `.cursor-plugin/` bundle.
+- Codex: clone this repo under `${CODEX_HOME:-$HOME/.codex}/lumen` and register
+  `scripts/run stdio`.
+- OpenCode: add `@ory/lumen-opencode` to the `plugin` array.
+
+For MCP clients that launch local stdio servers manually, the command shape is:
+
+```bash
+lumen stdio
+```
+
+For npm-based hosts, OpenCode consumes the `@ory/lumen-opencode` package. MCP
+configs for other servers may still use `npx -y <package>` style commands, but
+Lumen's own Codex/Cursor launcher is `scripts/run stdio`.
 
 ## Demo
 
@@ -61,7 +137,7 @@ _Claude Code asking about the
 [Prometheus](https://github.com/prometheus/prometheus) codebase. Lumen's
 `semantic_search` finds the relevant code without reading entire files._
 
-## Quick start
+## Quickstart
 
 **Prerequisites:**
 
@@ -185,6 +261,107 @@ the shared `doctor` and `reindex` skills are exposed through the Codex,
 Cursor, and OpenCode surfaces as well. The first `semantic_search` call seeds
 or refreshes the index automatically.
 
+## Client Configuration
+
+Lumen clients launch the same local MCP server and pass backend configuration
+through environment variables. The Claude plugin uses `${CLAUDE_PLUGIN_ROOT}`
+and user config; Cursor uses `${CURSOR_PLUGIN_ROOT}/scripts/run stdio`; Codex
+uses the checked-out `scripts/run stdio` launcher; OpenCode loads the published
+plugin package.
+
+For direct MCP JSON, the minimal server entry is:
+
+```json
+{
+  "mcpServers": {
+    "lumen": {
+      "command": "/path/to/lumen",
+      "args": ["stdio"],
+      "env": {
+        "LUMEN_BACKEND": "ollama",
+        "OLLAMA_HOST": "http://localhost:11434",
+        "LUMEN_EMBED_MODEL": "ordis/jina-embeddings-v2-base-code"
+      }
+    }
+  }
+}
+```
+
+## Runtime Surfaces
+
+| Surface | Command or file | Notes |
+| --- | --- | --- |
+| MCP stdio server | `lumen stdio` | Used by Claude Code, Cursor, Codex, and OpenCode. |
+| CLI search | `lumen search "query" --path .` | Runs local semantic search from a shell. |
+| Index management | `lumen index .`, `lumen purge` | Builds or clears local indexes. |
+| Shared skills | `skills/doctor`, `skills/reindex` | Host-neutral health and reindex workflows. |
+| Claude plugin | `.claude-plugin/plugin.json` | Marketplace install surface. |
+| Cursor plugin | `.cursor-plugin/`, `.cursor/mcp.json` | Cursor bundle and MCP wiring. |
+| Codex install | `.codex/INSTALL.md` | Local MCP plus skill discovery setup. |
+| OpenCode package | `@ory/lumen-opencode` | npm-published OpenCode plugin wrapper. |
+
+## MCP Tool Reference
+
+| Tool | Purpose |
+| --- | --- |
+| `semantic_search` | Search indexed code with natural language and return ranked code chunks or location-only summaries. |
+| `health_check` | Check embedding backend reachability, host, model, and connection status. |
+| `index_status` | Inspect indexed file/chunk counts, embedding model, and stale state for a project. |
+
+Safe raw MCP smoke:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "health_check",
+    "arguments": {}
+  }
+}
+```
+
+## Authentication
+
+Lumen itself does not require API keys. It talks to local embedding backends by
+URL and stores indexes under the local user account. If your Ollama, LM Studio,
+or TEI endpoint is protected by network policy or auth, configure that outside
+Lumen's MCP tool arguments.
+
+MCP callers never provide backend credentials, filesystem credentials, or model
+server secrets in tool arguments. Tool arguments carry search text, paths,
+limits, and output shaping options.
+
+## Safety And Trust Model
+
+Lumen reads project files that the local user can already read and writes index
+databases outside the project tree. It does not intentionally upload code or
+embeddings to cloud services; data leaves the machine only if the configured
+embedding backend URL points somewhere remote.
+
+Keep the MCP server scoped to trusted local agent clients. Treat indexed code,
+query text, and returned snippets as project data, and avoid pointing Lumen at
+directories whose contents should not be available to the agent.
+
+## Architecture
+
+Lumen sits between your codebase and Claude as an MCP server. When a session
+starts, it walks your project and builds a **Merkle tree** over file hashes:
+only changed files get re-chunked and re-embedded. Each file is split into
+semantic chunks (functions, types, methods) using Go's native AST or tree-sitter
+grammars for other languages. Chunks are embedded and stored in **SQLite +
+sqlite-vec** using cosine-distance KNN for retrieval.
+
+```
+Files -> semantic chunks -> vector embeddings -> SQLite/sqlite-vec -> KNN search
+```
+
+When Claude needs to understand code, it calls `semantic_search` instead of
+reading entire files. The index is stored outside your repo
+(`~/.local/share/lumen/<hash>/index.db`), keyed by project path and model name;
+different models never share an index.
+
 ## What you get
 
 - **Semantic vector search** — Claude finds relevant functions, types, and
@@ -200,24 +377,6 @@ or refreshes the index automatically.
   turning minutes of embedding into seconds
 - **Zero cloud** — embeddings stay on your machine; no data leaves your network
 - **Ollama and LM Studio** — works with either local embedding backend
-
-## How it works
-
-Lumen sits between your codebase and Claude as an MCP server. When a session
-starts, it walks your project and builds a **Merkle tree** over file hashes:
-only changed files get re-chunked and re-embedded. Each file is split into
-semantic chunks (functions, types, methods) using Go's native AST or tree-sitter
-grammars for other languages. Chunks are embedded and stored in **SQLite +
-sqlite-vec** using cosine-distance KNN for retrieval.
-
-```
-Files → semantic chunks → vector embeddings → SQLite/sqlite-vec → KNN search
-```
-
-When Claude needs to understand code, it calls `semantic_search` instead of
-reading entire files. The index is stored outside your repo
-(`~/.local/share/lumen/<hash>/index.db`), keyed by project path and model name —
-different models never share an index.
 
 ## Benchmarks
 
@@ -411,6 +570,39 @@ install it automatically.
 lumen help
 ```
 
+## Distribution Contract
+
+- Source repository and upstream module path remain `github.com/ory/lumen`.
+- The local launcher script downloads release assets from `jmagar/lumen` in
+  this forked packaging flow.
+- OpenCode package metadata is `@ory/lumen-opencode`.
+- Claude, Cursor, Codex, and OpenCode integrations all launch the same `lumen`
+  binary and expose the same MCP tools.
+- Plugin manifests, install docs, and release/package metadata are the generated
+  or machine-readable source of truth for host-specific wiring; this README is
+  the curated operator entry point.
+
+## Verification
+
+```bash
+python3 /home/jmagar/workspace/soma/scripts/check-readme-guide.py README.md
+make test
+make lint
+git diff --check
+```
+
+For a live MCP smoke, use the `doctor` skill or call `health_check`, then call a
+small `semantic_search` query against a local project.
+
+## Deployment
+
+- Run local embedding infrastructure first: Ollama, LM Studio, or TEI.
+- Install the host-specific plugin or register `lumen stdio` manually.
+- Keep index databases under the local user data directory; they are not written
+  into the project repository.
+- Use `.lumenignore` for project-specific exclusions that are not already in
+  `.gitignore`.
+
 ## Troubleshooting
 
 **Ollama not running / "connection refused"**
@@ -489,3 +681,39 @@ make plugin-dev
 See [CLAUDE.md](CLAUDE.md) for architecture details, design decisions, and
 contribution guidelines, and [AGENTS.md](AGENTS.md) for repo-specific agent
 instructions.
+
+## Related Servers
+
+- `unifi-rmcp / rustifi` - UniFi controller REST API bridge.
+- `tailscale-rmcp / rustscale` - Tailscale API bridge for devices, users, and tailnet operations.
+- `unraid-rmcp / unrust` - Unraid GraphQL bridge for NAS and server management.
+- `apprise-rmcp` - Apprise notification fan-out bridge for many delivery backends.
+- `gotify-rmcp` - Gotify push notification bridge for sends, messages, apps, and clients.
+- `arcane-rmcp` - Arcane Docker management bridge for containers and related resources.
+- `yarr-rmcp` - Media-stack bridge for Sonarr, Radarr, Prowlarr, Plex, and related services.
+- `ytdl-mcp` - Media download and metadata workflow server.
+- `synapse` - Local Synapse workflow server for scout and flux actions.
+- `cortex` - Syslog and homelab log aggregation MCP server.
+- `axon` - RAG, crawl, scrape, extract, and semantic search project.
+- `lab` - Homelab control plane and Labby gateway project.
+- `nugs` - Project/package management helper for local agent workflows.
+- `agentcast` - Agent transcript and activity publishing project.
+- `soma` - RMCP scaffold/runtime template for new provider-backed servers.
+
+## Documentation
+
+This README is the curated public entry point. The generated and
+machine-readable source of truth for client wiring lives in `.claude-plugin/`,
+`.cursor-plugin/`, `.codex/`, `.opencode/`, `package.json`, and the release
+workflow. Deeper docs:
+
+- `docs/BENCHMARKS.md` - benchmark methodology and per-language results.
+- `.codex/INSTALL.md` - Codex setup.
+- `.cursor-plugin/INSTALL.md` - Cursor bundle notes.
+- `.opencode/INSTALL.md` - OpenCode setup.
+- `CLAUDE.md` - architecture details and repo-local contribution notes.
+- `bench-swe/README.md` - benchmark harness.
+
+## License
+
+Apache-2.0, see `LICENSE`.
